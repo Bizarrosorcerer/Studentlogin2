@@ -38,7 +38,6 @@ const screens = {
 };
 
 // --- DARK MODE TOGGLE (SAFE VERSION) ---
-// This section is now wrapped in an IF check to prevent crashing on the Login Screen
 const themeBtn = document.getElementById("theme-toggle");
 if (themeBtn) {
     if(localStorage.getItem("theme") === "dark") {
@@ -198,8 +197,6 @@ document.getElementById("confirm-create").onclick = async () => {
     document.getElementById("create-modal").classList.add("hidden");
     loadSessions();
 };
-
-
 // --- SESSION DETAIL ---
 async function openSession(sessId, data) {
     currentSessionId = sessId;
@@ -232,6 +229,7 @@ async function openSession(sessId, data) {
     
     showScreen('detail');
 }
+
 document.getElementById("edit-target-btn").onclick = async () => {
     if(sessionData.status === "Ended") return alert("Session Ended.");
     let input = prompt("Enter new target percentage (0 to turn off):", sessionData.target);
@@ -247,6 +245,7 @@ document.getElementById("edit-target-btn").onclick = async () => {
 };
 
 document.getElementById("back-btn").onclick = () => showScreen('dashboard');
+
 
 function renderCalendar() {
     const grid = document.getElementById("calendar-days");
@@ -381,6 +380,7 @@ document.getElementById("save-note-btn").onclick = async () => {
     document.getElementById("note-input-container").classList.add("hidden");
     renderCalendar(); 
 };
+
 
 // --- HYBRID ATTENDANCE SYSTEM ---
 function calculateAttendance() {
