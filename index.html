@@ -1,138 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart Attendance Tracker</title>
-<link rel="stylesheet" href="style.css">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Attendance Tracker</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<!-- LOGIN -->
-<div id="login-screen">
-  <div class="login-card">
-    <h1>Welcome Student</h1>
-    <p>Track your attendance across multiple sessions.</p>
-    <div id="first-time-setup" class="hidden">
-      <input type="text" id="display-name-input" placeholder="Enter your Name">
+    <div id="login-screen">
+        <div class="login-card">
+            <h1>Welcome Student</h1>
+            <p>Track your attendance across multiple sessions.</p>
+            <div id="first-time-setup" class="hidden">
+                <input type="text" id="display-name-input" placeholder="Enter your Name (e.g. Nikhil)">
+            </div>
+            <button id="login-btn" class="btn-google">Sign in with Google</button>
+        </div>
     </div>
-    <button id="login-btn" class="btn-google">Sign in with Google</button>
-  </div>
-</div>
 
-<!-- DASHBOARD -->
-<div id="dashboard-screen" class="hidden">
+    <div id="dashboard-screen" class="hidden">
+        <div class="app-header">
+            <div class="profile-section">
+                <div class="profile-img-container" id="profile-pic-wrapper">
+                    <img id="profile-img" src="https://via.placeholder.com/50" alt="Profile">
+                    <div class="edit-overlay">📷</div>
+                </div>
+                <button id="remove-photo-btn" class="hidden" title="Remove Photo">×</button>
+                <input type="file" id="profile-upload" accept="image/*" hidden>
 
-  <div class="app-header">
-    <div class="profile-section">
-      <div class="profile-img-container" id="profile-pic-wrapper">
-        <img id="profile-img" src="https://via.placeholder.com/50">
-        <div class="edit-overlay">📷</div>
-      </div>
-      <input type="file" id="profile-upload" accept="image/*" hidden>
+                <div class="user-info">
+                    <h2 id="user-name">Student <span id="edit-name-btn">✎</span></h2>
+                    <small id="user-email">email@example.com</small>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="theme-toggle" class="btn-icon">🌙</button>
+                <button id="logout-btn" class="btn-small">Logout</button>
+            </div>
+        </div>
 
-      <div class="user-info">
-        <h2 id="user-name">Student <span id="edit-name-btn">✎</span></h2>
-        <small id="user-email"></small>
-      </div>
+        <div id="sessions-container"></div>
+
+        <button id="add-session-fab" class="fab">+</button>
+        <p id="admin-link" class="hidden" style="margin-top:20px; color:#ff0055; cursor:pointer;">Admin Directory</p>
     </div>
-    <button id="logout-btn" class="btn-small">Logout</button>
-  </div>
 
-  <div id="sessions-container"></div>
+    <div id="session-detail-screen" class="hidden">
+        <div class="session-header">
+            <button id="back-btn" class="btn-secondary">← Back</button>
+            <div class="session-info">
+                <h2 id="detail-title">Session Name</h2>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <small id="detail-dates">Dates...</small>
+                    <button id="edit-target-btn" class="btn-small" style="font-size:0.7em; padding:2px 8px;">Target: 75%</button>
+                </div>
+            </div>
+        </div>
 
-  <button id="add-session-fab" class="fab">+</button>
-  <p id="admin-link" class="hidden admin-link">Admin Directory</p>
-</div>
+        <div class="legend-bar">
+            <span class="legend-item"><span class="dot green"></span> Present</span>
+            <span class="legend-item"><span class="dot red"></span> Absent</span>
+            <span class="legend-item"><span class="dot blue"></span> Holiday</span>
+            <span class="legend-item"><span class="triangle purple"></span> Note</span>
+        </div>
 
-<!-- SESSION DETAIL -->
-<div id="session-detail-screen" class="hidden">
+        <div class="stats-card">
+            <div class="percentage-box">
+                <span id="attendance-percent">--%</span>
+                <small>Attendance</small>
+            </div>
+        </div>
 
-  <div class="session-header">
-    <button id="back-btn" class="btn-back">← Back</button>
-    <div>
-      <h2 id="detail-title"></h2>
-      <small id="detail-dates"></small>
+        <div class="calendar-wrapper">
+            <div class="calendar-nav">
+                <button id="prev-month-btn">&lt;</button>
+                <h3 id="calendar-month-year">January 2026</h3>
+                <button id="next-month-btn">&gt;</button>
+            </div>
+            <div class="day-names-row">
+                <div class="day-name">Sun</div><div class="day-name">Mon</div><div class="day-name">Tue</div>
+                <div class="day-name">Wed</div><div class="day-name">Thu</div><div class="day-name">Fri</div>
+                <div class="day-name">Sat</div>
+            </div>
+            <div id="calendar-days" class="calendar-days-grid"></div>
+        </div>
+
+        <div id="note-input-container" class="note-box hidden">
+            <small id="note-date-label">Note for Jan 15:</small>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="day-note-input" placeholder="Reason (e.g. Sick, Wedding)...">
+                <button id="save-note-btn" class="btn-primary" style="padding: 5px 15px;">Save</button>
+            </div>
+        </div>
+
+        <div class="bottom-actions">
+            <button id="end-session-btn" class="btn-danger">End Session</button>
+        </div>
     </div>
-  </div>
 
-  <div class="legend-bar">
-    <span class="legend-item"><span class="dot green"></span> Present</span>
-    <span class="legend-item"><span class="dot red"></span> Absent</span>
-    <span class="legend-item"><span class="dot blue"></span> Holiday</span>
-  </div>
+    <div id="create-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Start New Session</h3>
+            <label>Session Name:</label>
+            <input type="text" id="new-session-name" placeholder="e.g. College Sem 3">
+            
+            <label>Start Date:</label>
+            <input type="date" id="new-session-date"> 
 
-  <div class="stats-card">
-    <div>
-      <span id="attendance-percent">--%</span><br>
-      <small>Attendance</small>
+            <label style="margin-top:10px; display:block;">Target Percentage (%):</label>
+            <input type="number" id="new-session-target" placeholder="75" value="75">
+            <small style="color:var(--text-muted); display:block; margin-bottom:15px;">Set to 0 to turn off Bunk Calculator.</small>
+
+            <div class="modal-actions">
+                <button id="cancel-create" class="btn-text">Cancel</button>
+                <button id="confirm-create" class="btn-primary">Start</button>
+            </div>
+        </div>
     </div>
-    <button id="check-btn" class="btn-primary">Check Attendance</button>
-  </div>
-
-  <div class="calendar-wrapper">
-    <div class="calendar-nav">
-      <button id="prev-month-btn"><</button>
-      <h3 id="calendar-month-year"></h3>
-      <button id="next-month-btn">></button>
+    
+    <div id="end-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>End Session?</h3>
+            <p>This will freeze your attendance.</p>
+            <label>End Date:</label>
+            <input type="date" id="end-session-date">
+            <div class="modal-actions">
+                <button id="cancel-end" class="btn-text">Cancel</button>
+                <button id="confirm-end" class="btn-danger">End Forever</button>
+            </div>
+        </div>
     </div>
-    <div class="day-names-row">
-      <div>Sun</div><div>Mon</div><div>Tue</div>
-      <div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+
+    <div id="edit-name-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Edit Name</h3>
+            <input type="text" id="edit-name-input">
+            <div class="modal-actions">
+                <button id="cancel-edit-name" class="btn-text">Cancel</button>
+                <button id="save-name-btn" class="btn-primary">Save</button>
+            </div>
+        </div>
     </div>
-    <div id="calendar-days" class="calendar-days-grid"></div>
-  </div>
 
-  <button id="end-session-btn" class="btn-danger">End Session</button>
-</div>
+    <div id="admin-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>User Directory</h3>
+            <div id="admin-list" style="max-height: 300px; overflow-y: auto;"></div>
+            <button id="close-admin" class="btn-text" style="width:100%; margin-top:10px;">Close</button>
+        </div>
+    </div>
 
-<!-- MODALS -->
-<div id="photo-modal" class="modal hidden">
-  <div class="modal-content">
-    <h3>Profile Photo</h3>
-    <button id="replace-photo" class="btn-primary">Replace</button>
-    <button id="remove-photo" class="btn-danger">Remove</button>
-    <button id="cancel-photo" class="btn-text">Cancel</button>
-  </div>
-</div>
-
-<div id="edit-name-modal" class="modal hidden">
-  <div class="modal-content">
-    <h3>Edit Name</h3>
-    <input id="edit-name-input">
-    <button id="save-name-btn" class="btn-primary">Save</button>
-    <button id="cancel-edit-name" class="btn-text">Cancel</button>
-  </div>
-</div>
-
-<div id="create-modal" class="modal hidden">
-  <div class="modal-content">
-    <h3>Start Session</h3>
-    <input id="new-session-name" placeholder="Session Name">
-    <input type="date" id="new-session-date">
-    <button id="confirm-create" class="btn-primary">Start</button>
-    <button id="cancel-create" class="btn-text">Cancel</button>
-  </div>
-</div>
-
-<div id="end-modal" class="modal hidden">
-  <div class="modal-content">
-    <h3>End Session</h3>
-    <input type="date" id="end-session-date">
-    <button id="confirm-end" class="btn-danger">End</button>
-    <button id="cancel-end" class="btn-text">Cancel</button>
-  </div>
-</div>
-
-<div id="admin-modal" class="modal hidden">
-  <div class="modal-content">
-    <h3>User Directory</h3>
-    <div id="admin-list"></div>
-    <button id="close-admin" class="btn-text">Close</button>
-  </div>
-</div>
-
-<script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=FIXED"></script>
 </body>
 </html>
