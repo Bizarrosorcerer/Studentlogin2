@@ -38,8 +38,8 @@ const screens = {
 };
 
 // --- DARK MODE TOGGLE (SAFE VERSION) ---
+// This section is now wrapped in an IF check to prevent crashing on the Login Screen
 const themeBtn = document.getElementById("theme-toggle");
-// CRITICAL FIX: The 'if' check prevents the crash on the Login Screen
 if (themeBtn) {
     if(localStorage.getItem("theme") === "dark") {
         document.body.setAttribute("data-theme", "dark");
@@ -114,6 +114,7 @@ document.getElementById("login-btn").addEventListener("click", () => {
 });
 document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
 
+
 // --- PROFILE ACTIONS ---
 document.getElementById("save-name-btn").onclick = async () => {
     const newName = document.getElementById("edit-name-input").value;
@@ -147,6 +148,7 @@ document.getElementById("remove-photo-btn").onclick = async (e) => {
     document.getElementById("profile-img").src = "https://via.placeholder.com/50";
     document.getElementById("remove-photo-btn").classList.add("hidden");
 };
+
 
 // --- DASHBOARD ---
 async function loadSessions() {
@@ -197,6 +199,7 @@ document.getElementById("confirm-create").onclick = async () => {
     loadSessions();
 };
 
+
 // --- SESSION DETAIL ---
 async function openSession(sessId, data) {
     currentSessionId = sessId;
@@ -244,7 +247,6 @@ document.getElementById("edit-target-btn").onclick = async () => {
 };
 
 document.getElementById("back-btn").onclick = () => showScreen('dashboard');
-
 
 function renderCalendar() {
     const grid = document.getElementById("calendar-days");
@@ -380,7 +382,6 @@ document.getElementById("save-note-btn").onclick = async () => {
     renderCalendar(); 
 };
 
-
 // --- HYBRID ATTENDANCE SYSTEM ---
 function calculateAttendance() {
     let totalWorkingDays = 0;
@@ -497,3 +498,4 @@ async function checkAdmin() {
         };
         document.getElementById("close-admin").onclick = () => document.getElementById("admin-modal").classList.add("hidden");
     }
+}
