@@ -1,205 +1,122 @@
-/* ================= FIREBASE IMPORTS ================= */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  collection,
-  addDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  query,
-  orderBy
-} from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-
-/* ================= CONFIG ================= */
-const firebaseConfig = {
-  apiKey: "AIzaSyDAUrjhba6zQS47RpS4jH0QyvAw3U7dlcw",
-  authDomain: "logintester1-e9b27.firebaseapp.com",
-  projectId: "logintester1-e9b27",
-  storageBucket: "logintester1-e9b27.firebasestorage.app",
-  messagingSenderId: "939798745204",
-  appId: "1:939798745204:web:cc88423e2ed867734f0121"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const provider = new GoogleAuthProvider();
-
-/* ================= STATE ================= */
-let currentUser = null;
-
-/* ================= SCREENS ================= */
-const screens = {
-  login: document.getElementById("login-screen"),
-  dashboard: document.getElementById("dashboard-screen"),
-  detail: document.getElementById("session-detail-screen")
-};
-
-function showScreen(name) {
-  Object.values(screens).forEach(s => s.classList.add("hidden"));
-  screens[name].classList.remove("hidden");
-}
-
-/* ================= AUTH ================= */
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    currentUser = null;
-    showScreen("login");
-    return;
-  }
-
-  currentUser = user;
-
-  const userRef = doc(db, "users", user.uid);
-  const snap = await getDoc(userRef);
-
-  if (snap.exists()) {
-    loadProfile(snap.data());
-    showScreen("dashboard");
-    loadSessions();
-    checkAdmin();
-  } else {
-    document.getElementById("first-time-setup").classList.remove("hidden");
-  }
-});
-
-/* ================= LOGIN ================= */
-document.getElementById("login-btn").addEventListener("click", async () => {
-  const nameInput = document.getElementById("display-name-input");
-  const name = nameInput ? nameInput.value.trim() : "";
-
-  const result = await signInWithPopup(auth, provider);
-
-  if (name) {
-    await setDoc(doc(db, "users", result.user.uid), {
-      name: name,
-      email: result.user.email,
-      photo: null
-    }, { merge: true });
-
-    location.reload(); // SAFE reload
-  }
-});
-
-document.getElementById("logout-btn")
-  .addEventListener("click", () => signOut(auth));
-
-/* ================= PROFILE ================= */
-function loadProfile(data) {
-  document.getElementById("user-name").innerHTML =
-    `${data.name} <span id="edit-name-btn">✎</span>`;
-  document.getElementById("user-email").innerText = data.email;
-
-  const img = document.getElementById("profile-img");
-  img.src = data.photo || "https://via.placeholder.com/50";
-
-  document.getElementById("edit-name-btn").onclick = () =>
-    document.getElementById("edit-name-modal").classList.remove("hidden");
-}
-
-/* ================= PHOTO (20MB + REMOVE) ================= */
+// ========================= PHOTO UPLOAD + REMOVE =========================
 document.getElementById("profile-pic-wrapper").onclick = () =>
-  document.getElementById("photo-modal").classList.remove("hidden");
+    document.getElementById("photo-modal").classList.remove("hidden");
 
 document.getElementById("replace-photo").onclick = () => {
-  document.getElementById("photo-modal").classList.add("hidden");
-  document.getElementById("profile-upload").click();
+    document.getElementById("photo-modal").classList.add("hidden");
+    document.getElementById("profile-upload").click();
 };
 
 document.getElementById("remove-photo").onclick = async () => {
-  document.getElementById("profile-img").src = "https://via.placeholder.com/50";
-  await updateDoc(doc(db, "users", currentUser.uid), { photo: null });
-  document.getElementById("photo-modal").classList.add("hidden");
+    document.getElementById("profile-img").src = "https://via.placeholder.com/50";
+    await updateDoc(doc(db, "users", currentUser.uid), { photo: null });
+    document.getElementById("photo-modal").classList.add("hidden");
 };
 
 document.getElementById("cancel-photo").onclick = () =>
-  document.getElementById("photo-modal").classList.add("hidden");
+    document.getElementById("photo-modal").classList.add("hidden");
 
 document.getElementById("profile-upload").onchange = async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  if (file.size > 20 * 1024 * 1024) {
-    alert("Max photo size is 20MB");
-    return;
-  }
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) return alert("Max photo size is 20MB");
 
-  const reader = new FileReader();
-  reader.onload = async () => {
-    document.getElementById("profile-img").src = reader.result;
-    await updateDoc(doc(db, "users", currentUser.uid), {
-      photo: reader.result
-    });
-  };
-  reader.readAsDataURL(file);
+    const reader = new FileReader();
+    reader.onload = async function (evt) {
+        const base64 = evt.target.result;
+        document.getElementById("profile-img").src = base64;
+        await updateDoc(doc(db, "users", currentUser.uid), { photo: base64 });
+    };
+    reader.readAsDataURL(file);
 };
 
-/* ================= DASHBOARD ================= */
-async function loadSessions() {
-  const container = document.getElementById("sessions-container");
-  container.innerHTML = "Loading...";
+// ========================= SESSION PANEL UPGRADES =========================
+// Back button border + hover
+const backBtn = document.getElementById("back-btn");
+backBtn.style.border = "1px solid #333";
+backBtn.style.padding = "4px 8px";
+backBtn.style.borderRadius = "4px";
+backBtn.style.cursor = "pointer";
+backBtn.onmouseover = () => backBtn.style.background = "#eee";
+backBtn.onmouseout = () => backBtn.style.background = "transparent";
 
-  const q = query(
-    collection(db, `users/${currentUser.uid}/sessions`),
-    orderBy("startDate", "desc")
-  );
-
-  const snap = await getDocs(q);
-  container.innerHTML = "";
-
-  snap.forEach(d => {
-    const data = d.data();
-    const div = document.createElement("div");
-    div.className = "session-card";
-    div.innerHTML = `
-      <h3>${data.name}</h3>
-      <p>Started: ${data.startDate}</p>
-      <span class="badge ${data.status.toLowerCase()}">${data.status}</span>
-    `;
-    container.appendChild(div);
-  });
+// Color badges as squares
+function updateCalendarDaySquares() {
+    document.querySelectorAll(".day-present, .day-absent, .day-holiday").forEach(d => {
+        d.style.borderRadius = "0"; // square
+    });
 }
 
-/* ================= ADMIN ================= */
+// ========================= REAL-TIME ATTENDANCE =========================
+function updateAttendance() {
+    if (!sessionData) return;
+    let total = 0, present = 0;
+    const start = new Date(sessionData.startDate);
+    const end = sessionData.endDate ? new Date(sessionData.endDate) : new Date();
+
+    let d = new Date(start);
+    while (d <= end) {
+        const ds = d.toISOString().split("T")[0];
+        let status = "Present";
+        if (isDefaultHoliday(ds)) status = "Holiday";
+        if (sessionExceptions[ds]) status = sessionExceptions[ds];
+
+        if (status !== "Holiday") {
+            total++;
+            if (status === "Present") present++;
+        }
+        d.setDate(d.getDate() + 1);
+    }
+    const percent = total ? ((present / total) * 100).toFixed(2) : "100";
+    document.getElementById("attendance-percent").innerText = percent + "%";
+}
+
+// Override toggleDay to update attendance in real-time
+async function toggleDay(dateStr, currentStatus) {
+    if (sessionData.status === "Ended") return alert("Session Ended. Cannot edit.");
+    
+    let newStatus = currentStatus === "Present" ? "Absent" :
+                    currentStatus === "Absent" ? "Holiday" : "Present";
+
+    sessionExceptions[dateStr] = newStatus;
+    renderCalendar();
+    updateCalendarDaySquares();   // Make badges square
+    updateAttendance();           // Update attendance in real-time
+
+    const ref = doc(db, `users/${currentUser.uid}/sessions/${currentSessionId}/exceptions`, dateStr);
+    if (newStatus === "Present") {
+        if (isDefaultHoliday(dateStr)) await setDoc(ref, { status: "Present" });
+        else await deleteDoc(ref);
+    } else {
+        await setDoc(ref, { status: newStatus });
+    }
+}
+
+// ========================= ADMIN PANEL PHOTO =========================
 async function checkAdmin() {
-  const snap = await getDoc(doc(db, "users", currentUser.uid));
-  if (!snap.exists() || !snap.data().isAdmin) return;
-
-  const link = document.getElementById("admin-link");
-  link.classList.remove("hidden");
-
-  link.onclick = async () => {
-    document.getElementById("admin-modal").classList.remove("hidden");
-    const list = document.getElementById("admin-list");
-    list.innerHTML = "Loading...";
-
-    const users = await getDocs(collection(db, "users"));
-    list.innerHTML = "";
-
-    users.forEach(u => {
-      const d = u.data();
-      list.innerHTML += `
-        <div style="display:flex;gap:10px;align-items:center;border-bottom:1px solid #eee;padding:6px;">
-          <img src="${d.photo || "https://via.placeholder.com/40"}" width="40" height="40" style="border-radius:50%">
-          <div>
-            <b>${d.name}</b><br>
-            <small>${d.email}</small>
-          </div>
-        </div>
-      `;
-    });
-  };
-
-  document.getElementById("close-admin").onclick = () =>
-    document.getElementById("admin-modal").classList.add("hidden");
-  }
+    const docSnap = await getDoc(doc(db, "users", currentUser.uid));
+    if (docSnap.exists() && docSnap.data().isAdmin) {
+        const link = document.getElementById("admin-link");
+        link.classList.remove("hidden");
+        link.onclick = async () => {
+            document.getElementById("admin-modal").classList.remove("hidden");
+            const list = document.getElementById("admin-list");
+            list.innerHTML = "Loading...";
+            const allUsers = await getDocs(collection(db, "users"));
+            list.innerHTML = "";
+            allUsers.forEach(u => {
+                const d = u.data();
+                list.innerHTML += `
+                    <div style="display:flex;gap:10px;align-items:center;border-bottom:1px solid #eee;padding:6px;">
+                        <img src="${d.photo || "https://via.placeholder.com/40"}" width="40" height="40" style="border-radius:50%">
+                        <div>
+                            <b>${d.name}</b><br>
+                            <small>${d.email}</small>
+                        </div>
+                    </div>
+                `;
+            });
+        };
+        document.getElementById("close-admin").onclick = () => document.getElementById("admin-modal").classList.add("hidden");
+    }
+      }
