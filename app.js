@@ -498,4 +498,3 @@ async function checkAdmin() {
         };
         document.getElementById("close-admin").onclick = () => document.getElementById("admin-modal").classList.add("hidden");
     }
-}
