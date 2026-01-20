@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>StudentLogin3 - Ultimate</title>
+    <title>StudentLogin Ultimate</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -27,23 +27,23 @@
     <div id="dashboard-screen" class="hidden">
         <div class="app-header">
             <div class="profile-section">
-                <div class="profile-img-container" id="profile-pic-wrapper">
-                    <img id="profile-img" src="https://via.placeholder.com/50" alt="Profile">
-                    <div class="edit-overlay">📷</div>
+                <div class="profile-wrapper" id="profile-action-btn">
+                    <img id="profile-img" src="" class="hidden">
+                    <div id="profile-placeholder" class="placeholder-icon">+</div>
+                    <div id="profile-gear" class="gear-overlay hidden">⚙️</div>
                 </div>
-                <button id="remove-photo-btn" class="hidden">×</button>
+                
                 <input type="file" id="profile-upload" accept="image/*" hidden>
 
                 <div class="user-info">
                     <h2 id="user-name">Student <span id="edit-name-btn">✎</span></h2>
-                    <small id="user-email">email@example.com</small>
+                    <small id="user-email">loading...</small>
                 </div>
             </div>
             <div class="header-actions">
-                <button id="theme-toggle" class="btn-icon">🌙</button>
+                <button class="theme-toggle btn-icon">🌙</button>
                 <button id="logout-btn" class="btn-logout">
                     <span>Logout</span>
-                    <span class="icon">➜</span>
                 </button>
             </div>
         </div>
@@ -66,21 +66,21 @@
             </button>
             
             <div class="header-right-tools">
+                <button class="theme-toggle btn-icon">🌙</button>
                 <button id="notebook-btn" class="btn-icon" title="View Notes">📒</button>
             </div>
         </div>
 
         <div class="session-info-card">
-            <h2 id="detail-title">Physics 101</h2>
+            <h2 id="detail-title">Subject</h2>
             <div class="session-meta">
-                <span id="detail-dates">Jan 01 — Ongoing</span>
+                <span id="detail-dates">Dates</span>
                 <span class="dot-separator">•</span>
                 <button id="edit-target-btn" class="btn-text-action">Target: 75% ✎</button>
             </div>
         </div>
 
-        <div id="bunk-status-card" class="bunk-card">
-            </div>
+        <div id="bunk-status-card" class="bunk-card"></div>
 
         <div class="stats-row">
             <div class="stat-box">
@@ -91,14 +91,14 @@
                 <div class="legend-item"><span class="dot green"></span> Present</div>
                 <div class="legend-item"><span class="dot red"></span> Absent</div>
                 <div class="legend-item"><span class="dot blue"></span> Holiday</div>
-                <div class="legend-item"><span class="triangle purple"></span> Note (Hold)</div>
+                <div class="legend-item"><span class="icon-legend">📝</span> Note</div>
             </div>
         </div>
 
         <div class="calendar-wrapper">
             <div class="calendar-nav">
                 <button id="prev-month-btn" class="nav-arrow">&lt;</button>
-                <h3 id="calendar-month-year">January 2026</h3>
+                <h3 id="calendar-month-year">Month</h3>
                 <button id="next-month-btn" class="nav-arrow">&gt;</button>
             </div>
             <div class="day-names-row">
@@ -112,11 +112,34 @@
         </div>
     </div>
 
+    <div id="profile-options-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Profile Photo</h3>
+            <div class="menu-list">
+                <button id="btn-replace-photo" class="menu-item">📂 Replace Photo</button>
+                <button id="btn-remove-photo" class="menu-item danger">🗑️ Remove Photo</button>
+            </div>
+            <button id="close-profile-options" class="btn-text-full">Cancel</button>
+        </div>
+    </div>
+
+    <div id="target-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Set Target %</h3>
+            <p style="font-size:0.9em; color:#666;">This updates your Safe Bunk calculation instantly.</p>
+            <input type="number" id="target-input-field" placeholder="75" min="1" max="100">
+            <div class="modal-actions">
+                <button id="cancel-target-edit" class="btn-text">Cancel</button>
+                <button id="save-target-btn" class="btn-primary">Update</button>
+            </div>
+        </div>
+    </div>
+
     <div id="note-modal" class="modal hidden">
         <div class="modal-content">
             <h3>📝 Day Note</h3>
             <p id="note-date-display" style="color:#666; font-size:0.9em; margin-bottom:15px;">Date</p>
-            <textarea id="note-input-area" rows="4" placeholder="Why were you absent? (e.g. Sick, Wedding, Overslept)..."></textarea>
+            <textarea id="note-input-area" rows="4" placeholder="Reason (e.g. Sick, Wedding)..."></textarea>
             <div class="modal-actions">
                 <button id="delete-note-btn" class="btn-danger-text">Delete Note</button>
                 <div style="flex:1;"></div>
@@ -129,8 +152,7 @@
     <div id="notebook-hub-modal" class="modal hidden">
         <div class="modal-content">
             <h3>📒 Absence Diary</h3>
-            <div id="notebook-list" class="scrollable-list">
-                </div>
+            <div id="notebook-list" class="scrollable-list"></div>
             <button id="close-notebook" class="btn-text-full">Close</button>
         </div>
     </div>
@@ -138,8 +160,8 @@
     <div id="delete-confirm-modal" class="modal hidden">
         <div class="modal-content">
             <h3>Delete Session?</h3>
-            <p>Are you sure you want to delete <b id="del-session-name"></b>?</p>
-            <p style="color:red; font-size:0.8em;">This cannot be undone.</p>
+            <p>Delete <b id="del-session-name"></b>?</p>
+            <p style="color:red; font-size:0.8em;">Cannot be undone.</p>
             <div class="modal-actions">
                 <button id="cancel-delete" class="btn-text">Cancel</button>
                 <button id="confirm-delete" class="btn-danger">Delete</button>
@@ -162,11 +184,10 @@
             </div>
         </div>
     </div>
-    
+
     <div id="end-modal" class="modal hidden">
         <div class="modal-content">
             <h3>Freeze Session</h3>
-            <p>This stops attendance tracking for this subject.</p>
             <label>End Date:</label>
             <input type="date" id="end-session-date">
             <div class="modal-actions">
@@ -195,6 +216,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=STUDENT_LOGIN_3"></script>
+    <script type="module" src="app.js?v=FINAL_REV_4"></script>
 </body>
 </html>
