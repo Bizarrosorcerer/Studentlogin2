@@ -49,21 +49,25 @@ function showToast(msg, type="error") {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// --- DARK MODE (Global) ---
-const themeBtns = document.querySelectorAll(".theme-toggle");
-if(localStorage.getItem("theme") === "dark") document.body.setAttribute("data-theme", "dark");
-
-themeBtns.forEach(btn => {
-    btn.onclick = () => {
+// --- DARK MODE ---
+const themeBtn = document.getElementById("theme-toggle");
+if (themeBtn) {
+    if(localStorage.getItem("theme") === "dark") {
+        document.body.setAttribute("data-theme", "dark");
+        themeBtn.innerText = "☀️";
+    }
+    themeBtn.onclick = () => {
         if(document.body.getAttribute("data-theme") === "dark") {
             document.body.removeAttribute("data-theme");
             localStorage.setItem("theme", "light");
+            themeBtn.innerText = "🌙";
         } else {
             document.body.setAttribute("data-theme", "dark");
             localStorage.setItem("theme", "dark");
+            themeBtn.innerText = "☀️";
         }
     };
-});
+}
 
 // --- AUTH ---
 onAuthStateChanged(auth, async (user) => {
@@ -106,57 +110,32 @@ if(loginBtn) {
 }
 document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
 
-// --- PROFILE LOGIC (Logic Improved) ---
 function loadProfile(data) {
     document.getElementById("user-name").innerHTML = `${data.name} <span id="edit-name-btn">✎</span>`;
     document.getElementById("user-email").innerText = data.email;
-    
     const img = document.getElementById("profile-img");
-    const wrapper = document.getElementById("profile-action-btn");
-    const placeholder = document.getElementById("profile-placeholder");
-    const gear = document.getElementById("profile-gear");
-
-    // Has Photo?
+    const removeBtn = document.getElementById("remove-photo-btn");
     if(data.photo) {
         img.src = data.photo;
-        img.classList.remove("hidden");
-        placeholder.classList.add("hidden");
-        gear.classList.remove("hidden"); // Ensure logic for hover is CSS handled, but element exists
-        // Click -> Open Options Modal
-        wrapper.onclick = () => document.getElementById("profile-options-modal").classList.remove("hidden");
+        removeBtn.classList.remove("hidden");
     } else {
-        img.src = "";
-        img.classList.add("hidden");
-        placeholder.classList.remove("hidden");
-        gear.classList.add("hidden");
-        // Click -> Open File Input
-        wrapper.onclick = () => document.getElementById("profile-upload").click();
+        img.src = "https://via.placeholder.com/50";
+        removeBtn.classList.add("hidden");
     }
-
-    document.getElementById("edit-name-btn").onclick = (e) => { e.stopPropagation(); document.getElementById("edit-name-modal").classList.remove("hidden"); };
+    document.getElementById("edit-name-btn").onclick = () => document.getElementById("edit-name-modal").classList.remove("hidden");
 }
 
-// Profile Options Actions
-document.getElementById("btn-replace-photo").onclick = () => {
-    document.getElementById("profile-options-modal").classList.add("hidden");
-    document.getElementById("profile-upload").click();
+document.getElementById("save-name-btn").onclick = async () => {
+    const newName = document.getElementById("edit-name-input").value;
+    if(!newName) return;
+    await updateDoc(doc(db, "users", currentUser.uid), { name: newName });
+    document.getElementById("user-name").innerHTML = `${newName} <span id="edit-name-btn">✎</span>`;
+    document.getElementById("edit-name-modal").classList.add("hidden");
 };
-document.getElementById("btn-remove-photo").onclick = () => {
-    document.getElementById("profile-options-modal").classList.add("hidden");
-    document.getElementById("profile-remove-confirm-modal").classList.remove("hidden");
-};
-document.getElementById("cancel-remove-photo").onclick = () => document.getElementById("profile-remove-confirm-modal").classList.add("hidden");
-document.getElementById("confirm-remove-photo").onclick = async () => {
-    document.getElementById("profile-remove-confirm-modal").classList.add("hidden");
-    await updateDoc(doc(db, "users", currentUser.uid), { photo: null });
-    // Refresh UI instantly
-    const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-    loadProfile(userDoc.data());
-    showToast("Photo Removed", "success");
-};
-document.getElementById("close-profile-options").onclick = () => document.getElementById("profile-options-modal").classList.add("hidden");
+document.getElementById("cancel-edit-name").onclick = () => document.getElementById("edit-name-modal").classList.add("hidden");
 
-// Handle File Select
+// PHOTO UPLOAD
+document.getElementById("profile-pic-wrapper").onclick = () => document.getElementById("profile-upload").click();
 document.getElementById("profile-upload").onchange = async (e) => {
     const file = e.target.files[0];
     if(!file) return;
@@ -164,12 +143,18 @@ document.getElementById("profile-upload").onchange = async (e) => {
     const reader = new FileReader();
     reader.onload = async function(evt) {
         const base64 = evt.target.result;
+        document.getElementById("profile-img").src = base64;
+        document.getElementById("remove-photo-btn").classList.remove("hidden");
         await updateDoc(doc(db, "users", currentUser.uid), { photo: base64 });
-        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-        loadProfile(userDoc.data());
-        showToast("Photo Updated", "success");
     };
     reader.readAsDataURL(file);
+};
+document.getElementById("remove-photo-btn").onclick = async (e) => {
+    e.stopPropagation(); 
+    if(!confirm("Remove profile photo?")) return;
+    await updateDoc(doc(db, "users", currentUser.uid), { photo: null });
+    document.getElementById("profile-img").src = "https://via.placeholder.com/50";
+    document.getElementById("remove-photo-btn").classList.add("hidden");
 };
 
 // --- DASHBOARD ---
@@ -183,17 +168,9 @@ async function loadSessions() {
         const data = docSnap.data();
         const div = document.createElement("div");
         div.className = "session-card";
-        const statusClass = data.status === 'Ongoing' ? 'ongoing' : 'ended';
-        
-        // Status Badge Logic Restored
         div.innerHTML = `
-            <div class="card-header">
-                <div class="card-title-row">
-                    <h3>${data.name}</h3>
-                    <span class="status-badge ${statusClass}">${data.status}</span>
-                </div>
-                <button class="delete-session-icon" onclick="event.stopPropagation(); confirmDeleteSession('${docSnap.id}', '${data.name}')">🗑️</button>
-            </div>
+            <button class="delete-session-icon" onclick="event.stopPropagation(); confirmDeleteSession('${docSnap.id}', '${data.name}')">🗑️</button>
+            <h3>${data.name}</h3>
             <p>Started: ${data.startDate}</p>
         `;
         div.onclick = () => openSession(docSnap.id, data);
@@ -201,6 +178,7 @@ async function loadSessions() {
     });
 }
 
+// Global function for onclick
 window.confirmDeleteSession = (id, name) => {
     const modal = document.getElementById("delete-confirm-modal");
     document.getElementById("del-session-name").innerText = name;
@@ -214,7 +192,6 @@ window.confirmDeleteSession = (id, name) => {
 };
 document.getElementById("cancel-delete").onclick = () => document.getElementById("delete-confirm-modal").classList.add("hidden");
 
-// Create Session logic
 document.getElementById("add-session-fab").onclick = () => document.getElementById("create-modal").classList.remove("hidden");
 document.getElementById("cancel-create").onclick = () => document.getElementById("create-modal").classList.add("hidden");
 document.getElementById("confirm-create").onclick = async () => {
@@ -243,10 +220,13 @@ async function openSession(sessId, data) {
 
     document.getElementById("detail-title").innerText = data.name;
     document.getElementById("detail-dates").innerText = `${data.startDate} — ${data.status === 'Ended' ? data.endDate : 'Ongoing'}`;
-    document.getElementById("edit-target-btn").innerText = `Target: ${sessionData.target}% ✎`;
+    document.getElementById("edit-target-btn").innerText = `Target: ${sessionData.target}%`;
 
-    if(data.status === "Ended") document.getElementById("end-session-btn").classList.add("hidden");
-    else document.getElementById("end-session-btn").classList.remove("hidden");
+    if(data.status === "Ended") {
+        document.getElementById("end-session-btn").classList.add("hidden");
+    } else {
+        document.getElementById("end-session-btn").classList.remove("hidden");
+    }
 
     const snap = await getDocs(collection(db, `users/${currentUser.uid}/sessions/${sessId}/exceptions`));
     snap.forEach(d => { sessionExceptions[d.id] = d.data(); });
@@ -257,38 +237,34 @@ async function openSession(sessId, data) {
     showScreen('detail');
 }
 
-// TARGET MODAL (New Logic)
-document.getElementById("edit-target-btn").onclick = () => {
-    if(sessionData.status === "Ended") return showToast("Session Frozen", "error");
-    document.getElementById("target-input-field").value = sessionData.target;
-    document.getElementById("target-modal").classList.remove("hidden");
-};
-document.getElementById("cancel-target-edit").onclick = () => document.getElementById("target-modal").classList.add("hidden");
-document.getElementById("save-target-btn").onclick = async () => {
-    let val = Number(document.getElementById("target-input-field").value);
-    if(val < 1 || val > 100) return showToast("Invalid Target", "error");
-    
-    await updateDoc(doc(db, `users/${currentUser.uid}/sessions`, currentSessionId), { target: val });
-    sessionData.target = val;
-    document.getElementById("edit-target-btn").innerText = `Target: ${val}% ✎`;
-    document.getElementById("target-modal").classList.add("hidden");
-    calculateAttendance(); // REAL-TIME RECALC
-    showToast("Target Updated", "success");
+document.getElementById("edit-target-btn").onclick = async () => {
+    if(sessionData.status === "Ended") return showToast("Session is Locked/Frozen", "error");
+    let input = prompt("New Target %:", sessionData.target);
+    if(input === null) return;
+    let newTarget = Number(input);
+    if(isNaN(newTarget)) return;
+    await updateDoc(doc(db, `users/${currentUser.uid}/sessions`, currentSessionId), { target: newTarget });
+    sessionData.target = newTarget;
+    document.getElementById("edit-target-btn").innerText = `Target: ${newTarget}%`;
+    calculateAttendance(); 
 };
 
 document.getElementById("back-btn").onclick = () => showScreen('dashboard');
 
-// --- CALENDAR & ATTENDANCE ---
+// --- CALENDAR RENDER ---
 function renderCalendar() {
     const grid = document.getElementById("calendar-days");
     grid.innerHTML = "";
+    
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     document.getElementById("calendar-month-year").innerText = `${monthNames[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
 
     const firstDay = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
     const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
 
-    for(let i=0; i<firstDay; i++) grid.appendChild(document.createElement("div"));
+    for(let i=0; i<firstDay; i++) {
+        grid.appendChild(document.createElement("div"));
+    }
 
     for(let i=1; i<=daysInMonth; i++) {
         const div = document.createElement("div");
@@ -313,11 +289,12 @@ function renderCalendar() {
             }
 
             div.classList.add(`day-${status.toLowerCase()}`);
-            if(hasNote) div.classList.add("note-marker"); // VISIBLE NOTE MARKER
+            if(hasNote) div.classList.add("note-marker");
 
+            // INTERACTION LOGIC (Tap vs Long Press)
             div.onmousedown = div.ontouchstart = () => { isLongPress = false; longPressTimer = setTimeout(() => { isLongPress = true; openNoteModal(dateStr); }, 600); };
             div.onmouseup = div.ontouchend = (e) => { clearTimeout(longPressTimer); if(!isLongPress) toggleDay(dateStr, status); };
-            div.oncontextmenu = (e) => { e.preventDefault(); return false; };
+            div.oncontextmenu = (e) => { e.preventDefault(); return false; }; // Block context menu
         }
         grid.appendChild(div);
     }
@@ -332,18 +309,22 @@ function isDefaultHoliday(dateStr) {
     return false;
 }
 
+// --- LOGIC: TOGGLE vs NOTE ---
 async function toggleDay(dateStr, currentStatus) {
-    if(sessionData.status === "Ended") return showToast("Session Frozen", "error");
+    if(sessionData.status === "Ended") return showToast("Session Frozen: Cannot Edit", "error");
+
     let newStatus = "Present";
     if(currentStatus === "Present") newStatus = "Absent";
     else if(currentStatus === "Absent") newStatus = "Holiday";
     else if(currentStatus === "Holiday") newStatus = "Present"; 
 
+    // Optimistic Update
     if(!sessionExceptions[dateStr]) sessionExceptions[dateStr] = {};
     sessionExceptions[dateStr].status = newStatus;
     renderCalendar();
     calculateAttendance();
 
+    // DB Save
     const ref = doc(db, `users/${currentUser.uid}/sessions/${currentSessionId}/exceptions`, dateStr);
     const dataToSave = { status: newStatus };
     if(sessionExceptions[dateStr].note) dataToSave.note = sessionExceptions[dateStr].note;
@@ -370,8 +351,10 @@ function openNoteModal(dateStr) {
 document.getElementById("save-note-btn").onclick = async () => {
     const text = document.getElementById("note-input-area").value;
     const dateStr = selectedDateForNote;
-    if(!sessionExceptions[dateStr]) sessionExceptions[dateStr] = { status: "Absent" }; 
+    
+    if(!sessionExceptions[dateStr]) sessionExceptions[dateStr] = { status: "Absent" }; // Default to Absent if noting
     sessionExceptions[dateStr].note = text;
+
     await setDoc(doc(db, `users/${currentUser.uid}/sessions/${currentSessionId}/exceptions`, dateStr), sessionExceptions[dateStr]);
     document.getElementById("note-modal").classList.add("hidden");
     renderCalendar();
@@ -390,6 +373,8 @@ document.getElementById("delete-note-btn").onclick = async () => {
 };
 document.getElementById("close-note-modal").onclick = () => document.getElementById("note-modal").classList.add("hidden");
 
+
+// --- CALCULATE LOGIC (3 ZONES) ---
 function calculateAttendance() {
     let total = 0, present = 0;
     let loopDate = new Date(sessionData.startDate);
@@ -416,19 +401,23 @@ function calculateAttendance() {
 function updateBunkCard(P, N, currentPct, T_pct) {
     const card = document.getElementById("bunk-status-card");
     const T = T_pct / 100;
+    
     card.className = "bunk-card"; 
     
+    // ZONE 1: DANGER (Recover)
     if(currentPct < T_pct) {
         let R = Math.ceil((T*N - P) / (1-T));
         if(R < 0) R = 0;
         card.classList.add("danger");
         card.innerHTML = `<span>🚨 <b>Danger!</b> Below Target.<br>Attend next <b>${R} classes</b> to recover.</span>`;
     }
+    // ZONE 2: SAFE (Bunk Available)
     else if ((P / (N+1)) >= T) {
         let B = Math.floor(P/T - N);
         card.classList.add("safe");
         card.innerHTML = `<span>☕ <b>Safe Zone.</b><br>You can bunk <b>${B} classes</b> safely.</span>`;
     }
+    // ZONE 3: BUFFER BUILDING (100% but can't bunk yet)
     else {
         let D = Math.ceil((T*N + T - P) / (1-T));
         card.classList.add("buffer");
@@ -436,11 +425,14 @@ function updateBunkCard(P, N, currentPct, T_pct) {
     }
 }
 
-// NOTEBOOK HUB
+
+// --- NOTEBOOK HUB ---
 document.getElementById("notebook-btn").onclick = () => {
     const list = document.getElementById("notebook-list");
     list.innerHTML = "";
     let hasNotes = false;
+    
+    // Sort dates
     Object.keys(sessionExceptions).sort().forEach(date => {
         if(sessionExceptions[date].note) {
             hasNotes = true;
@@ -448,13 +440,16 @@ document.getElementById("notebook-btn").onclick = () => {
                 <div class="notebook-item" onclick="jumpToDate('${date}')">
                     <div class="notebook-date">${date}</div>
                     <div class="notebook-text">${sessionExceptions[date].note}</div>
-                </div>`;
+                </div>
+            `;
         }
     });
+
     if(!hasNotes) list.innerHTML = "<p style='padding:20px; color:#999; text-align:center;'>No notes found.</p>";
     document.getElementById("notebook-hub-modal").classList.remove("hidden");
 };
 document.getElementById("close-notebook").onclick = () => document.getElementById("notebook-hub-modal").classList.add("hidden");
+
 window.jumpToDate = (date) => {
     document.getElementById("notebook-hub-modal").classList.add("hidden");
     const d = new Date(date);
@@ -462,6 +457,8 @@ window.jumpToDate = (date) => {
     renderCalendar();
 };
 
+
+// --- NAV ---
 document.getElementById("prev-month-btn").onclick = () => { viewDate.setMonth(viewDate.getMonth() - 1); renderCalendar(); };
 document.getElementById("next-month-btn").onclick = () => { viewDate.setMonth(viewDate.getMonth() + 1); renderCalendar(); };
 
@@ -494,7 +491,8 @@ async function checkAdmin() {
             allUsers.forEach(u => {
                 const d = u.data();
                 const pic = d.photo ? d.photo : "https://via.placeholder.com/30";
-                list.innerHTML += `<div style="border-bottom:1px solid #eee; padding:10px; display:flex; align-items:center; gap:10px;">
+                list.innerHTML += `
+                    <div style="border-bottom:1px solid #eee; padding:10px; display:flex; align-items:center; gap:10px;">
                         <img src="${pic}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
                         <div><b>${d.name}</b><br><small>${d.email}</small></div>
                     </div>`;
