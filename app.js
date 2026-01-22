@@ -24,6 +24,8 @@ let viewDate = new Date();
 let longPressTimer;
 let isLongPress = false;
 let selectedDateForNote = null;
+let trendChart = null; // Chart instance
+let distChart = null; // Chart instance
 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
@@ -99,7 +101,6 @@ document.getElementById("logout-btn").addEventListener("click", () => signOut(au
 function loadProfile(data) {
     document.getElementById("user-name-text").innerText = data.name;
     document.getElementById("user-email").innerText = data.email;
-    
     const img = document.getElementById("profile-img");
     const wrapper = document.getElementById("profile-action-btn");
     const placeholder = document.getElementById("profile-placeholder");
@@ -111,7 +112,6 @@ function loadProfile(data) {
         placeholder.classList.add("hidden");
         gear.classList.remove("hidden");
         wrapper.onclick = () => {
-            // SET MODAL PREVIEW IMAGE
             document.getElementById("modal-profile-preview").src = data.photo;
             document.getElementById("profile-options-modal").classList.remove("hidden");
         };
@@ -238,9 +238,109 @@ async function openSession(sessId, data) {
     snap.forEach(d => { sessionExceptions[d.id] = d.data(); });
 
     viewDate = new Date(); 
+    // Default to Calendar View
+    switchTab('calendar');
     renderCalendar();
     calculateAttendance(); 
     showScreen('detail');
+}
+
+// TAB SWITCHING LOGIC
+const tabCal = document.getElementById("tab-calendar");
+const tabIns = document.getElementById("tab-insights");
+tabCal.onclick = () => switchTab('calendar');
+tabIns.onclick = () => switchTab('insights');
+
+function switchTab(tabName) {
+    if(tabName === 'calendar') {
+        document.getElementById("view-calendar").classList.remove("hidden");
+        document.getElementById("view-insights").classList.add("hidden");
+        tabCal.classList.add("active");
+        tabIns.classList.remove("active");
+    } else {
+        document.getElementById("view-calendar").classList.add("hidden");
+        document.getElementById("view-insights").classList.remove("hidden");
+        tabCal.classList.remove("active");
+        tabIns.classList.add("active");
+        renderAnalytics(); // RENDER CHARTS
+    }
+}
+
+// --- ANALYTICS ENGINE (Chart.js) ---
+function renderAnalytics() {
+    // DESTROY OLD CHARTS
+    if(trendChart) trendChart.destroy();
+    if(distChart) distChart.destroy();
+
+    // 1. DATA PREP (Time Travel Loop)
+    let total = 0, present = 0, absent = 0, holiday = 0;
+    let labels = [], dataPoints = [];
+    
+    let loopDate = new Date(sessionData.startDate);
+    let today = new Date();
+    
+    // Iterate from Start -> Today
+    while(loopDate <= today) {
+        const dStr = loopDate.toISOString().split('T')[0];
+        let status = "Present"; // Default
+        
+        if(sessionExceptions[dStr] && sessionExceptions[dStr].status) status = sessionExceptions[dStr].status;
+        else if(isDefaultHoliday(dStr)) status = "Holiday";
+
+        if(status !== "Holiday") {
+            total++;
+            if(status === "Present") present++;
+            else absent++;
+            
+            // Record Point for Graph
+            let pct = (present / total) * 100;
+            labels.push(dStr.substring(5)); // "MM-DD"
+            dataPoints.push(pct.toFixed(1));
+        } else {
+            holiday++;
+        }
+        loopDate.setDate(loopDate.getDate() + 1);
+    }
+
+    // 2. RENDER TREND CHART (Line)
+    const ctxTrend = document.getElementById('trendChart').getContext('2d');
+    trendChart = new Chart(ctxTrend, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Attendance %',
+                data: dataPoints,
+                borderColor: '#6C5CE7',
+                backgroundColor: 'rgba(108, 92, 231, 0.1)',
+                fill: true,
+                tension: 0.3
+            }, {
+                label: 'Target',
+                data: Array(labels.length).fill(sessionData.target),
+                borderColor: '#FF4757',
+                borderDash: [5, 5],
+                pointRadius: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { min: 0, max: 100 } }
+        }
+    });
+
+    // 3. RENDER DISTRIBUTION CHART (Doughnut)
+    const ctxDist = document.getElementById('distributionChart').getContext('2d');
+    distChart = new Chart(ctxDist, {
+        type: 'doughnut',
+        data: {
+            labels: ['Present', 'Absent', 'Holidays'],
+            datasets: [{
+                data: [present, absent, holiday],
+                backgroundColor: ['#00B894', '#FF4757', '#0984e3']
+            }]
+        }
+    });
 }
 
 document.getElementById("edit-target-btn").onclick = () => {
@@ -298,7 +398,6 @@ function renderCalendar() {
             div.classList.add(`day-${status.toLowerCase()}`);
             if(hasNote) div.classList.add("note-marker");
 
-            // START & END MARKERS RESTORED
             if(dateStr === sessionData.startDate) div.classList.add("start-date-marker");
             if(sessionData.status === 'Ended' && dateStr === sessionData.endDate) div.classList.add("end-date-marker");
 
