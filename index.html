@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>StudentLogin Ultimate Refined</title>
+    <title>StudentLogin Ultimate Analytics</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -76,6 +77,24 @@
                 <span class="dot-separator">•</span>
                 <button id="edit-target-btn" class="btn-text-action">Target: 75% ✎</button>
             </div>
+        </div>
+
+        <div id="bunk-status-card" class="bunk-card"></div>
+
+        <div class="tab-switcher-container">
+            <div class="tab-switcher">
+                <button class="tab-btn active" id="tab-calendar">📅 Calendar</button>
+                <button class="tab-btn" id="tab-insights">📊 Insights</button>
+            </div>
+        </div>
+
+        <div id="view-calendar">
+            <div class="stats-row">
+                <div class="stat-box-center">
+                    <span class="stat-label">Current Attendance</span>
+                    <span id="attendance-percent" class="stat-value">--%</span>
+                </div>
+            </div>
 
             <div class="legend-row">
                 <div class="legend-item"><span class="square green"></span> Present</div>
@@ -83,27 +102,29 @@
                 <div class="legend-item"><span class="square blue"></span> Holiday</div>
                 <div class="legend-item"><span class="icon-legend">📝</span> Note</div>
             </div>
-        </div>
 
-        <div id="bunk-status-card" class="bunk-card"></div>
-
-        <div class="stats-row">
-            <div class="stat-box-center">
-                <span class="stat-label">Current Attendance</span>
-                <span id="attendance-percent" class="stat-value">--%</span>
+            <div class="calendar-wrapper">
+                <div class="calendar-nav">
+                    <button id="prev-month-btn" class="nav-arrow">&lt;</button>
+                    <h3 id="calendar-month-year">Month</h3>
+                    <button id="next-month-btn" class="nav-arrow">&gt;</button>
+                </div>
+                <div class="day-names-row">
+                    <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+                </div>
+                <div id="calendar-days" class="calendar-days-grid"></div>
             </div>
         </div>
 
-        <div class="calendar-wrapper">
-            <div class="calendar-nav">
-                <button id="prev-month-btn" class="nav-arrow">&lt;</button>
-                <h3 id="calendar-month-year">Month</h3>
-                <button id="next-month-btn" class="nav-arrow">&gt;</button>
+        <div id="view-insights" class="hidden">
+            <div class="chart-container">
+                <h3>📈 Attendance Trend</h3>
+                <canvas id="trendChart"></canvas>
             </div>
-            <div class="day-names-row">
-                <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+            <div class="chart-container">
+                <h3>🍰 Distribution</h3>
+                <canvas id="distributionChart" style="max-height: 200px;"></canvas>
             </div>
-            <div id="calendar-days" class="calendar-days-grid"></div>
         </div>
 
         <div class="bottom-actions">
@@ -218,6 +239,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=REFINED_COLORS_6"></script>
+    <script type="module" src="app.js?v=ANALYTICS_V1"></script>
 </body>
 </html>
