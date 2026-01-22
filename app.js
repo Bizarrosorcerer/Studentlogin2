@@ -25,7 +25,7 @@ let longPressTimer;
 let isLongPress = false;
 let selectedDateForNote = null;
 
-const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"]; // Add more as needed
+const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
 const screens = {
     login: document.getElementById("login-screen"),
@@ -42,7 +42,6 @@ function showToast(msg, type="error") {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// DARK MODE
 const themeBtns = document.querySelectorAll(".theme-toggle");
 if(localStorage.getItem("theme") === "dark") document.body.setAttribute("data-theme", "dark");
 themeBtns.forEach(btn => {
@@ -98,7 +97,6 @@ if(loginBtn) {
 document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
 
 function loadProfile(data) {
-    // FIX: Update text ONLY, preserve button
     document.getElementById("user-name-text").innerText = data.name;
     document.getElementById("user-email").innerText = data.email;
     
@@ -112,7 +110,11 @@ function loadProfile(data) {
         img.classList.remove("hidden");
         placeholder.classList.add("hidden");
         gear.classList.remove("hidden");
-        wrapper.onclick = () => document.getElementById("profile-options-modal").classList.remove("hidden");
+        wrapper.onclick = () => {
+            // SET MODAL PREVIEW IMAGE
+            document.getElementById("modal-profile-preview").src = data.photo;
+            document.getElementById("profile-options-modal").classList.remove("hidden");
+        };
     } else {
         img.src = "";
         img.classList.add("hidden");
@@ -122,7 +124,6 @@ function loadProfile(data) {
     }
 }
 
-// Edit Name Logic
 document.getElementById("edit-name-btn").onclick = () => document.getElementById("edit-name-modal").classList.remove("hidden");
 document.getElementById("save-name-btn").onclick = async () => {
     const newName = document.getElementById("edit-name-input").value;
@@ -134,7 +135,6 @@ document.getElementById("save-name-btn").onclick = async () => {
 };
 document.getElementById("cancel-edit-name").onclick = () => document.getElementById("edit-name-modal").classList.add("hidden");
 
-// Profile Options
 document.getElementById("btn-replace-photo").onclick = () => {
     document.getElementById("profile-options-modal").classList.add("hidden");
     document.getElementById("profile-upload").click();
@@ -163,7 +163,6 @@ document.getElementById("profile-upload").onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
-// DASHBOARD
 async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
@@ -244,7 +243,6 @@ async function openSession(sessId, data) {
     showScreen('detail');
 }
 
-// Target Modal
 document.getElementById("edit-target-btn").onclick = () => {
     if(sessionData.status === "Ended") return showToast("Session Frozen", "error");
     document.getElementById("target-input-field").value = sessionData.target;
@@ -299,6 +297,10 @@ function renderCalendar() {
 
             div.classList.add(`day-${status.toLowerCase()}`);
             if(hasNote) div.classList.add("note-marker");
+
+            // START & END MARKERS RESTORED
+            if(dateStr === sessionData.startDate) div.classList.add("start-date-marker");
+            if(sessionData.status === 'Ended' && dateStr === sessionData.endDate) div.classList.add("end-date-marker");
 
             div.onmousedown = div.ontouchstart = () => { isLongPress = false; longPressTimer = setTimeout(() => { isLongPress = true; openNoteModal(dateStr); }, 600); };
             div.onmouseup = div.ontouchend = (e) => { clearTimeout(longPressTimer); if(!isLongPress) toggleDay(dateStr, status); };
