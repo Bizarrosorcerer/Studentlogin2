@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>StudentLogin Ultimate Fixed</title>
+    <title>StudentLogin Ultimate Refined</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -53,8 +53,7 @@
             <button id="add-session-fab" class="btn-primary-small">+ New</button>
         </div>
 
-        <div id="sessions-container">
-            </div>
+        <div id="sessions-container"></div>
 
         <p id="admin-link" class="hidden" style="margin-top:20px; color:#ff0055; cursor:pointer; font-size:0.8em; text-align: center;">Admin Directory</p>
     </div>
@@ -64,7 +63,6 @@
             <button id="back-btn" class="btn-back">
                 <span class="icon">‹</span> Back
             </button>
-            
             <div class="header-right-tools">
                 <button class="theme-toggle btn-icon">🌙</button>
                 <button id="notebook-btn" class="btn-icon" title="View Notes">📒</button>
@@ -73,7 +71,6 @@
 
         <div class="session-info-card">
             <h2 id="detail-title">Subject</h2>
-            
             <div class="session-meta">
                 <span id="detail-dates">Dates</span>
                 <span class="dot-separator">•</span>
@@ -84,7 +81,7 @@
                 <div class="legend-item"><span class="square green"></span> Present</div>
                 <div class="legend-item"><span class="square red"></span> Absent</div>
                 <div class="legend-item"><span class="square blue"></span> Holiday</div>
-                <div class="legend-item"><span class="icon-legend">📝</span> Note (Hold)</div>
+                <div class="legend-item"><span class="icon-legend">📝</span> Note</div>
             </div>
         </div>
 
@@ -116,7 +113,10 @@
 
     <div id="profile-options-modal" class="modal hidden">
         <div class="modal-content">
-            <h3>Profile Photo</h3>
+            <h3>Profile Settings</h3>
+            <div class="modal-profile-preview-container">
+                <img id="modal-profile-preview" src="" alt="Current Profile">
+            </div>
             <div class="menu-list">
                 <button id="btn-replace-photo" class="menu-item">📂 Replace Photo</button>
                 <button id="btn-remove-photo" class="menu-item danger">🗑️ Remove Photo</button>
@@ -218,6 +218,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=FIXED_LAYOUT_5"></script>
+    <script type="module" src="app.js?v=REFINED_COLORS_6"></script>
 </body>
 </html>
