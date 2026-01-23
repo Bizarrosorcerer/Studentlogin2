@@ -15,7 +15,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ENABLE OFFLINE PERSISTENCE (Keeps data when internet is off)
+// ENABLE OFFLINE PERSISTENCE
 enableIndexedDbPersistence(db).catch((err) => {
     console.log("Persistence error:", err.code);
 });
@@ -71,18 +71,14 @@ themeBtns.forEach(btn => {
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
-        // Check if user exists in DB
         const userDoc = await getDoc(doc(db, "users", user.uid));
         
         if (userDoc.exists() && userDoc.data().name) {
-            // Existing User -> Go to Dashboard
             loadProfile(userDoc.data());
             showScreen('dashboard');
             loadSessions();
             checkAdmin();
         } else {
-            // New User or missing name -> Show Setup
-            // Auto-fill name from Google if available
             if(user.displayName) {
                 document.getElementById("display-name-input").value = user.displayName;
             }
@@ -101,16 +97,14 @@ if(loginBtn) {
         const isSetupMode = !document.getElementById("first-time-setup").classList.contains("hidden");
         const nameInput = document.getElementById("display-name-input").value;
         
-        // If setup mode is visible, name is required
         if(isSetupMode && !nameInput) return showToast("Please confirm your name", "error");
 
         signInWithPopup(auth, provider).then(async (result) => {
-            // If it was setup mode, save the name
             if(isSetupMode || nameInput) {
                 await setDoc(doc(db, "users", result.user.uid), {
                     name: nameInput || result.user.displayName,
                     email: result.user.email,
-                    photo: null // Default no photo
+                    photo: null 
                 }, { merge: true });
                 window.location.reload(); 
             }
@@ -133,8 +127,6 @@ function loadProfile(data) {
         img.classList.remove("hidden");
         placeholder.classList.add("hidden");
         gear.classList.remove("hidden");
-        
-        // Preview on click
         wrapper.onclick = () => {
             document.getElementById("modal-profile-preview").src = data.photo;
             document.getElementById("profile-options-modal").classList.remove("hidden");
@@ -144,12 +136,10 @@ function loadProfile(data) {
         img.classList.add("hidden");
         placeholder.classList.remove("hidden");
         gear.classList.add("hidden");
-        // Upload on click
         wrapper.onclick = () => document.getElementById("profile-upload").click();
     }
 }
 
-// Edit Name
 document.getElementById("edit-name-btn").onclick = () => document.getElementById("edit-name-modal").classList.remove("hidden");
 document.getElementById("save-name-btn").onclick = async () => {
     const newName = document.getElementById("edit-name-input").value;
@@ -161,7 +151,6 @@ document.getElementById("save-name-btn").onclick = async () => {
 };
 document.getElementById("cancel-edit-name").onclick = () => document.getElementById("edit-name-modal").classList.add("hidden");
 
-// Photo Actions
 document.getElementById("btn-replace-photo").onclick = () => {
     document.getElementById("profile-options-modal").classList.add("hidden");
     document.getElementById("profile-upload").click();
@@ -191,18 +180,19 @@ document.getElementById("profile-upload").onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
-// --- SESSION MANAGEMENT (THE FIX IS HERE) ---
+// --- SESSION MANAGEMENT ---
+
+// 1. SAFE LOAD (Shows Old & New Data)
 async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
     
-    // FETCH EVERYTHING (Do NOT use orderBy in query to avoid hiding old data)
+    // Fetch ALL sessions (no filter)
     const q = query(collection(db, `users/${currentUser.uid}/sessions`));
     
     const snapshot = await getDocs(q);
     const sessionsList = [];
 
-    // Combine ID with Data
     snapshot.forEach(docSnap => {
         sessionsList.push({
             id: docSnap.id,
@@ -210,21 +200,17 @@ async function loadSessions() {
         });
     });
 
-    // SORT MANUALLY (Client-Side)
-    // 1. SortOrder (High to Low) -> Puts 'Top' items first
-    // 2. StartDate (New to Old) -> Sorts the rest
+    // Manual Sort
     sessionsList.sort((a, b) => {
-        const orderA = a.sortOrder !== undefined ? a.sortOrder : 0; // Default old items to 0
+        const orderA = a.sortOrder !== undefined ? a.sortOrder : 0; 
         const orderB = b.sortOrder !== undefined ? b.sortOrder : 0;
         
         if (orderA !== orderB) {
-            return orderB - orderA; // Descending SortOrder
+            return orderB - orderA; // High to Low (Positive > 0 > Negative)
         }
-        // Tie-breaker: Date
         return new Date(b.startDate) - new Date(a.startDate);
     });
 
-    // RENDER
     container.innerHTML = "";
     if(sessionsList.length === 0) {
         container.innerHTML = "<p style='text-align:center; color:#888; padding:20px;'>No sessions yet.<br>Click + New to start.</p>";
@@ -250,7 +236,6 @@ async function loadSessions() {
     });
 }
 
-// Delete Logic
 window.confirmDeleteSession = (id, name) => {
     const modal = document.getElementById("delete-confirm-modal");
     document.getElementById("del-session-name").innerText = name;
@@ -264,7 +249,7 @@ window.confirmDeleteSession = (id, name) => {
 };
 document.getElementById("cancel-delete").onclick = () => document.getElementById("delete-confirm-modal").classList.add("hidden");
 
-// Create Logic
+// 2. CREATE SESSION (FIXED BOTTOM LOGIC)
 document.getElementById("add-session-fab").onclick = () => document.getElementById("create-modal").classList.remove("hidden");
 document.getElementById("cancel-create").onclick = () => document.getElementById("create-modal").classList.add("hidden");
 
@@ -277,9 +262,9 @@ document.getElementById("confirm-create").onclick = async () => {
     if(!name || !date) return showToast("Fill all fields");
     if(!target) target = 75; 
 
-    // Sorting Value: 'Top' = Current Timestamp, 'Bottom' = 0
+    // --- LOGIC FIX: Top = +Time, Bottom = -Time ---
     let orderValue = Date.now(); 
-    if(position === 'bottom') orderValue = 0;
+    if(position === 'bottom') orderValue = -Date.now();
 
     await addDoc(collection(db, `users/${currentUser.uid}/sessions`), {
         name: name,
@@ -294,7 +279,7 @@ document.getElementById("confirm-create").onclick = async () => {
     loadSessions();
 };
 
-// --- SESSION DETAIL & ATTENDANCE ---
+// --- SESSION DETAIL ---
 async function openSession(sessId, data) {
     currentSessionId = sessId;
     sessionData = data;
@@ -305,25 +290,19 @@ async function openSession(sessId, data) {
     document.getElementById("detail-dates").innerText = `${data.startDate} — ${data.status === 'Ended' ? data.endDate : 'Ongoing'}`;
     document.getElementById("edit-target-btn").innerText = `Target: ${sessionData.target}% ✎`;
 
-    // Manage Buttons
     if(data.status === "Ended") document.getElementById("end-session-btn").classList.add("hidden");
     else document.getElementById("end-session-btn").classList.remove("hidden");
 
-    // Load Exceptions (Attendance Marks)
     const snap = await getDocs(collection(db, `users/${currentUser.uid}/sessions/${sessId}/exceptions`));
     snap.forEach(d => { sessionExceptions[d.id] = d.data(); });
 
     viewDate = new Date(); 
-    
-    // Reset Tab to Calendar
     switchTab('calendar');
-    
     renderCalendar();
     calculateAttendance(); 
     showScreen('detail');
 }
 
-// Tab Switching
 const tabCal = document.getElementById("tab-calendar");
 const tabIns = document.getElementById("tab-insights");
 tabCal.onclick = () => switchTab('calendar');
@@ -344,7 +323,7 @@ function switchTab(tabName) {
     }
 }
 
-// --- ANALYTICS (CHART.JS) ---
+// --- ANALYTICS ---
 function renderAnalytics() {
     if(trendChart) trendChart.destroy();
     if(distChart) distChart.destroy();
@@ -368,7 +347,7 @@ function renderAnalytics() {
             else absent++;
             
             let pct = (present / total) * 100;
-            labels.push(dStr.substring(5)); // MM-DD
+            labels.push(dStr.substring(5)); 
             dataPoints.push(pct.toFixed(1));
         } else {
             holiday++;
@@ -376,7 +355,6 @@ function renderAnalytics() {
         loopDate.setDate(loopDate.getDate() + 1);
     }
 
-    // 1. Trend Chart
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     trendChart = new Chart(ctxTrend, {
         type: 'line',
@@ -403,7 +381,6 @@ function renderAnalytics() {
         }
     });
 
-    // 2. Distribution Chart
     const ctxDist = document.getElementById('distributionChart').getContext('2d');
     distChart = new Chart(ctxDist, {
         type: 'doughnut',
@@ -417,7 +394,7 @@ function renderAnalytics() {
     });
 }
 
-// Target Edit Logic
+// Target Logic
 document.getElementById("edit-target-btn").onclick = () => {
     if(sessionData.status === "Ended") return showToast("Session Frozen", "error");
     document.getElementById("target-input-field").value = sessionData.target;
@@ -437,7 +414,7 @@ document.getElementById("save-target-btn").onclick = async () => {
 
 document.getElementById("back-btn").onclick = () => showScreen('dashboard');
 
-// --- CALENDAR LOGIC ---
+// --- CALENDAR RENDER ---
 function renderCalendar() {
     const grid = document.getElementById("calendar-days");
     grid.innerHTML = "";
@@ -466,10 +443,8 @@ function renderCalendar() {
             let status = "Present";
             let hasNote = false;
             
-            // Check Defaults
             if(isDefaultHoliday(dateStr)) status = "Holiday";
             
-            // Check Exceptions (User Overrides)
             if(sessionExceptions[dateStr]) {
                 status = sessionExceptions[dateStr].status;
                 if(sessionExceptions[dateStr].note) hasNote = true;
@@ -478,11 +453,9 @@ function renderCalendar() {
             div.classList.add(`day-${status.toLowerCase()}`);
             if(hasNote) div.classList.add("note-marker");
 
-            // Markers
             if(dateStr === sessionData.startDate) div.classList.add("start-date-marker");
             if(sessionData.status === 'Ended' && dateStr === sessionData.endDate) div.classList.add("end-date-marker");
 
-            // Interactions
             div.onmousedown = div.ontouchstart = () => { isLongPress = false; longPressTimer = setTimeout(() => { isLongPress = true; openNoteModal(dateStr); }, 600); };
             div.onmouseup = div.ontouchend = (e) => { clearTimeout(longPressTimer); if(!isLongPress) toggleDay(dateStr, status); };
             div.oncontextmenu = (e) => { e.preventDefault(); return false; };
@@ -493,7 +466,7 @@ function renderCalendar() {
 
 function isDefaultHoliday(dateStr) {
     const d = new Date(dateStr);
-    if(d.getDay() === 0) return true; // Sundays
+    if(d.getDay() === 0) return true; 
     for(let h of fixedHolidays) {
         if(dateStr.endsWith(h) || dateStr === h) return true;
     }
@@ -503,13 +476,11 @@ function isDefaultHoliday(dateStr) {
 async function toggleDay(dateStr, currentStatus) {
     if(sessionData.status === "Ended") return showToast("Session Frozen", "error");
     
-    // Cycle Status: Present -> Absent -> Holiday -> Present
     let newStatus = "Present";
     if(currentStatus === "Present") newStatus = "Absent";
     else if(currentStatus === "Absent") newStatus = "Holiday";
     else if(currentStatus === "Holiday") newStatus = "Present"; 
 
-    // Optimistic UI Update
     if(!sessionExceptions[dateStr]) sessionExceptions[dateStr] = {};
     sessionExceptions[dateStr].status = newStatus;
     renderCalendar();
@@ -519,10 +490,9 @@ async function toggleDay(dateStr, currentStatus) {
     const dataToSave = { status: newStatus };
     if(sessionExceptions[dateStr].note) dataToSave.note = sessionExceptions[dateStr].note;
 
-    // Database Logic: Delete if default, Set if exception
     if(newStatus === "Present" && !dataToSave.note) {
-        if(isDefaultHoliday(dateStr)) await setDoc(ref, { status: "Present" }); // Force Present on Holiday
-        else await deleteDoc(ref); // Default is Present, so remove exception
+        if(isDefaultHoliday(dateStr)) await setDoc(ref, { status: "Present" });
+        else await deleteDoc(ref);
         
         if(!isDefaultHoliday(dateStr)) delete sessionExceptions[dateStr];
     } else {
@@ -611,7 +581,6 @@ function updateBunkCard(P, N, currentPct, T_pct) {
     }
 }
 
-// Notebook
 document.getElementById("notebook-btn").onclick = () => {
     const list = document.getElementById("notebook-list");
     list.innerHTML = "";
@@ -640,7 +609,6 @@ window.jumpToDate = (date) => {
 document.getElementById("prev-month-btn").onclick = () => { viewDate.setMonth(viewDate.getMonth() - 1); renderCalendar(); };
 document.getElementById("next-month-btn").onclick = () => { viewDate.setMonth(viewDate.getMonth() + 1); renderCalendar(); };
 
-// End Session
 document.getElementById("end-session-btn").onclick = () => document.getElementById("end-modal").classList.remove("hidden");
 document.getElementById("cancel-end").onclick = () => document.getElementById("end-modal").classList.add("hidden");
 document.getElementById("confirm-end").onclick = async () => {
