@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>StudentLogin Ultimate Polish</title>
+    <title>Student Assistant</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -12,7 +12,15 @@
 
     <div id="toast-container"></div>
 
-    <div id="login-screen">
+    <div id="splash-screen">
+        <div class="splash-content">
+            <div class="logo-circle">🎓</div>
+            <h2>Student Assistant</h2>
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <div id="login-screen" class="hidden">
         <div class="login-card">
             <h1>Welcome Student</h1>
             <p>Your academic assistant.</p>
@@ -187,7 +195,6 @@
     <div id="target-modal" class="modal hidden">
         <div class="modal-content">
             <h3>Set Target %</h3>
-            <p style="font-size:0.9em; color:#666;">Updates Safe Bunk status instantly.</p>
             <input type="number" id="target-input-field" placeholder="75" min="1" max="100">
             <div class="modal-actions">
                 <button id="cancel-target-edit" class="btn-text">Cancel</button>
@@ -222,7 +229,6 @@
         <div class="modal-content">
             <h3>Delete Session?</h3>
             <p>Delete <b id="del-session-name"></b>?</p>
-            <p style="color:red; font-size:0.8em;">Irreversible action.</p>
             <div class="modal-actions">
                 <button id="cancel-delete" class="btn-text">Cancel</button>
                 <button id="confirm-delete" class="btn-danger">Delete</button>
@@ -250,6 +256,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=POLISHED_FINAL"></script>
+    <script type="module" src="app.js?v=FINAL_VERSION"></script>
 </body>
 </html>
