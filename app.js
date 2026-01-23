@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, updateDoc, deleteDoc, query, orderBy, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, updateDoc, deleteDoc, query, orderBy, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDAUrjhba6zQS47RpS4jH0QyvAw3U7dlcw",
@@ -15,7 +15,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ENABLE OFFLINE PERSISTENCE
 enableIndexedDbPersistence(db).catch((err) => {
     console.log("Persistence error:", err.code);
 });
@@ -36,7 +35,6 @@ let distChart = null;
 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
-// SCREENS (Included Splash)
 const screens = {
     splash: document.getElementById("splash-screen"),
     login: document.getElementById("login-screen"),
@@ -53,41 +51,58 @@ function showToast(msg, type="error") {
     setTimeout(() => toast.remove(), 3000);
 }
 
+// --- NEW: THEME CYCLER (Light -> Dark -> Midnight -> Sepia) ---
 const themeBtns = document.querySelectorAll(".theme-toggle");
-if(localStorage.getItem("theme") === "dark") document.body.setAttribute("data-theme", "dark");
+const themes = ["light", "dark", "midnight", "sepia"];
+
+// 1. Load saved theme
+let currentTheme = localStorage.getItem("theme") || "light";
+document.body.setAttribute("data-theme", currentTheme);
+updateThemeIcon(currentTheme);
+
 themeBtns.forEach(btn => {
     btn.onclick = () => {
-        if(document.body.getAttribute("data-theme") === "dark") {
-            document.body.removeAttribute("data-theme");
-            localStorage.setItem("theme", "light");
-        } else {
-            document.body.setAttribute("data-theme", "dark");
-            localStorage.setItem("theme", "dark");
-        }
+        // 2. Find current index and get next one
+        let index = themes.indexOf(currentTheme);
+        index = (index + 1) % themes.length; // Loops back to 0
+        
+        // 3. Apply new theme
+        currentTheme = themes[index];
+        document.body.setAttribute("data-theme", currentTheme);
+        localStorage.setItem("theme", currentTheme);
+        
+        // 4. Update the Icon
+        updateThemeIcon(currentTheme);
     };
 });
 
-// --- AUTH & SPLASH LOGIC ---
+function updateThemeIcon(theme) {
+    const icons = {
+        "light": "☀️",
+        "dark": "🌙",
+        "midnight": "🖤",
+        "sepia": "📖"
+    };
+    themeBtns.forEach(btn => btn.innerText = icons[theme]);
+}
+
+// --- AUTH & SPLASH ---
 onAuthStateChanged(auth, async (user) => {
-    // Wait for auth check before deciding screen
     if (user) {
         currentUser = user;
         const userDoc = await getDoc(doc(db, "users", user.uid));
         
         if (userDoc.exists() && userDoc.data().name) {
-            // LOGGED IN
             loadProfile(userDoc.data());
             loadSessions();
             checkAdmin();
-            setTimeout(() => showScreen('dashboard'), 500); // Smooth transition
+            setTimeout(() => showScreen('dashboard'), 500); 
         } else {
-            // NEW USER
             if(user.displayName) document.getElementById("display-name-input").value = user.displayName;
             document.getElementById("first-time-setup").classList.remove("hidden");
             showScreen('login');
         }
     } else {
-        // NOT LOGGED IN
         currentUser = null;
         document.getElementById("first-time-setup").classList.add("hidden");
         setTimeout(() => showScreen('login'), 500); 
@@ -107,19 +122,25 @@ if(loginBtn) {
         if(isSetupMode && !nameInput) return showToast("Please confirm your name", "error");
 
         signInWithPopup(auth, provider).then(async (result) => {
+            showScreen('splash'); // Immediate Splash
+
             if(isSetupMode || nameInput) {
                 await setDoc(doc(db, "users", result.user.uid), {
                     name: nameInput || result.user.displayName,
                     email: result.user.email,
                     photo: null 
                 }, { merge: true });
-                window.location.reload(); 
             }
-        }).catch(err => showToast(err.message));
+        }).catch(err => {
+            console.error(err);
+            showToast("Login failed. Try again.");
+            showScreen('login');
+        });
     });
 }
+
 document.getElementById("logout-btn").addEventListener("click", () => {
-    showScreen('splash'); // Show loading when logging out
+    showScreen('splash'); 
     signOut(auth);
 });
 
@@ -189,12 +210,11 @@ document.getElementById("profile-upload").onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
-// --- SESSION LIST (SAFE LOAD) ---
+// --- SESSION LIST ---
 async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
     
-    // Fetch all sessions (no filter to ensure old data loads)
     const q = query(collection(db, `users/${currentUser.uid}/sessions`));
     const snapshot = await getDocs(q);
     const sessionsList = [];
@@ -206,14 +226,10 @@ async function loadSessions() {
         });
     });
 
-    // Client-side Sort
     sessionsList.sort((a, b) => {
         const orderA = a.sortOrder !== undefined ? a.sortOrder : 0; 
         const orderB = b.sortOrder !== undefined ? b.sortOrder : 0;
-        
-        if (orderA !== orderB) {
-            return orderB - orderA; 
-        }
+        if (orderA !== orderB) return orderB - orderA; 
         return new Date(b.startDate) - new Date(a.startDate);
     });
 
@@ -255,21 +271,19 @@ window.confirmDeleteSession = (id, name) => {
 };
 document.getElementById("cancel-delete").onclick = () => document.getElementById("delete-confirm-modal").classList.add("hidden");
 
-// --- CREATE SESSION (WITH RESET & FIX) ---
+// --- CREATE SESSION ---
 document.getElementById("add-session-fab").onclick = () => {
-    // RESET FIELDS
     document.getElementById("new-session-name").value = "";
     document.getElementById("new-session-date").value = "";
     document.getElementById("new-session-target").value = "75";
     document.getElementById("new-session-position").value = "top"; 
-    
     document.getElementById("create-modal").classList.remove("hidden");
 };
 
 document.getElementById("cancel-create").onclick = () => document.getElementById("create-modal").classList.add("hidden");
 
 document.getElementById("confirm-create").onclick = async () => {
-    const name = document.getElementById("new-session-name").value;
+    const name = document.getElementById("new-session-name").value.trim();
     const date = document.getElementById("new-session-date").value;
     let target = document.getElementById("new-session-target").value;
     const position = document.getElementById("new-session-position").value; 
@@ -277,7 +291,14 @@ document.getElementById("confirm-create").onclick = async () => {
     if(!name || !date) return showToast("Fill all fields");
     if(!target) target = 75; 
 
-    // Negative Sort Logic
+    // DUPLICATE CHECK
+    const q = query(
+        collection(db, `users/${currentUser.uid}/sessions`), 
+        where("name", "==", name)
+    );
+    const existingCheck = await getDocs(q);
+    if (!existingCheck.empty) return showToast("Session name already exists!", "error");
+
     let orderValue = Date.now(); 
     if(position === 'bottom') orderValue = -Date.now();
 
