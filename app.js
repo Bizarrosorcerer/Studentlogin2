@@ -24,8 +24,8 @@ let viewDate = new Date();
 let longPressTimer;
 let isLongPress = false;
 let selectedDateForNote = null;
-let trendChart = null; // Chart instance
-let distChart = null; // Chart instance
+let trendChart = null; 
+let distChart = null; 
 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
@@ -163,10 +163,14 @@ document.getElementById("profile-upload").onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
+// FETCH SESSIONS (Sorted)
 async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
-    const q = query(collection(db, `users/${currentUser.uid}/sessions`), orderBy("startDate", "desc"));
+    
+    // Sort by sortOrder first, then createdAt
+    const q = query(collection(db, `users/${currentUser.uid}/sessions`), orderBy("sortOrder", "desc"));
+    
     const snapshot = await getDocs(q);
     container.innerHTML = "";
     snapshot.forEach(docSnap => {
@@ -204,18 +208,29 @@ document.getElementById("cancel-delete").onclick = () => document.getElementById
 
 document.getElementById("add-session-fab").onclick = () => document.getElementById("create-modal").classList.remove("hidden");
 document.getElementById("cancel-create").onclick = () => document.getElementById("create-modal").classList.add("hidden");
+
 document.getElementById("confirm-create").onclick = async () => {
     const name = document.getElementById("new-session-name").value;
     const date = document.getElementById("new-session-date").value;
     let target = document.getElementById("new-session-target").value;
+    const position = document.getElementById("new-session-position").value; // 'top' or 'bottom'
+    
     if(!name || !date) return showToast("Fill all fields");
     if(!target) target = 75; 
+
+    // Sort Logic: Top gets current Timestamp, Bottom gets 0
+    // This makes 'Top' items always bigger than 'Bottom' items
+    let orderValue = Date.now(); 
+    if(position === 'bottom') orderValue = 0;
+
     await addDoc(collection(db, `users/${currentUser.uid}/sessions`), {
         name: name,
         startDate: date,
         endDate: null,
         status: "Ongoing",
-        target: Number(target)
+        target: Number(target),
+        sortOrder: orderValue, // Used for sorting
+        createdAt: Date.now()
     });
     document.getElementById("create-modal").classList.add("hidden");
     loadSessions();
@@ -238,14 +253,12 @@ async function openSession(sessId, data) {
     snap.forEach(d => { sessionExceptions[d.id] = d.data(); });
 
     viewDate = new Date(); 
-    // Default to Calendar View
     switchTab('calendar');
     renderCalendar();
     calculateAttendance(); 
     showScreen('detail');
 }
 
-// TAB SWITCHING LOGIC
 const tabCal = document.getElementById("tab-calendar");
 const tabIns = document.getElementById("tab-insights");
 tabCal.onclick = () => switchTab('calendar');
@@ -262,27 +275,23 @@ function switchTab(tabName) {
         document.getElementById("view-insights").classList.remove("hidden");
         tabCal.classList.remove("active");
         tabIns.classList.add("active");
-        renderAnalytics(); // RENDER CHARTS
+        renderAnalytics(); 
     }
 }
 
-// --- ANALYTICS ENGINE (Chart.js) ---
 function renderAnalytics() {
-    // DESTROY OLD CHARTS
     if(trendChart) trendChart.destroy();
     if(distChart) distChart.destroy();
 
-    // 1. DATA PREP (Time Travel Loop)
     let total = 0, present = 0, absent = 0, holiday = 0;
     let labels = [], dataPoints = [];
     
     let loopDate = new Date(sessionData.startDate);
     let today = new Date();
     
-    // Iterate from Start -> Today
     while(loopDate <= today) {
         const dStr = loopDate.toISOString().split('T')[0];
-        let status = "Present"; // Default
+        let status = "Present"; 
         
         if(sessionExceptions[dStr] && sessionExceptions[dStr].status) status = sessionExceptions[dStr].status;
         else if(isDefaultHoliday(dStr)) status = "Holiday";
@@ -292,9 +301,8 @@ function renderAnalytics() {
             if(status === "Present") present++;
             else absent++;
             
-            // Record Point for Graph
             let pct = (present / total) * 100;
-            labels.push(dStr.substring(5)); // "MM-DD"
+            labels.push(dStr.substring(5)); 
             dataPoints.push(pct.toFixed(1));
         } else {
             holiday++;
@@ -302,7 +310,6 @@ function renderAnalytics() {
         loopDate.setDate(loopDate.getDate() + 1);
     }
 
-    // 2. RENDER TREND CHART (Line)
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     trendChart = new Chart(ctxTrend, {
         type: 'line',
@@ -329,7 +336,6 @@ function renderAnalytics() {
         }
     });
 
-    // 3. RENDER DISTRIBUTION CHART (Doughnut)
     const ctxDist = document.getElementById('distributionChart').getContext('2d');
     distChart = new Chart(ctxDist, {
         type: 'doughnut',
