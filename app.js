@@ -15,6 +15,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// ENABLE OFFLINE PERSISTENCE
 enableIndexedDbPersistence(db).catch((err) => {
     console.log("Persistence error:", err.code);
 });
@@ -35,7 +36,9 @@ let distChart = null;
 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
+// SCREENS (Included Splash)
 const screens = {
+    splash: document.getElementById("splash-screen"),
     login: document.getElementById("login-screen"),
     dashboard: document.getElementById("dashboard-screen"),
     detail: document.getElementById("session-detail-screen")
@@ -64,29 +67,37 @@ themeBtns.forEach(btn => {
     };
 });
 
-// --- AUTH ---
+// --- AUTH & SPLASH LOGIC ---
 onAuthStateChanged(auth, async (user) => {
+    // Wait for auth check before deciding screen
     if (user) {
         currentUser = user;
         const userDoc = await getDoc(doc(db, "users", user.uid));
         
         if (userDoc.exists() && userDoc.data().name) {
+            // LOGGED IN
             loadProfile(userDoc.data());
-            showScreen('dashboard');
             loadSessions();
             checkAdmin();
+            setTimeout(() => showScreen('dashboard'), 500); // Smooth transition
         } else {
-            if(user.displayName) {
-                document.getElementById("display-name-input").value = user.displayName;
-            }
+            // NEW USER
+            if(user.displayName) document.getElementById("display-name-input").value = user.displayName;
             document.getElementById("first-time-setup").classList.remove("hidden");
+            showScreen('login');
         }
     } else {
+        // NOT LOGGED IN
         currentUser = null;
-        showScreen('login');
         document.getElementById("first-time-setup").classList.add("hidden");
+        setTimeout(() => showScreen('login'), 500); 
     }
 });
+
+function showScreen(id) {
+    Object.values(screens).forEach(s => s.classList.add("hidden"));
+    screens[id].classList.remove("hidden");
+}
 
 const loginBtn = document.getElementById("login-btn");
 if(loginBtn) {
@@ -107,7 +118,10 @@ if(loginBtn) {
         }).catch(err => showToast(err.message));
     });
 }
-document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
+document.getElementById("logout-btn").addEventListener("click", () => {
+    showScreen('splash'); // Show loading when logging out
+    signOut(auth);
+});
 
 // --- PROFILE ---
 function loadProfile(data) {
@@ -175,11 +189,12 @@ document.getElementById("profile-upload").onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
-// --- SESSION LIST ---
+// --- SESSION LIST (SAFE LOAD) ---
 async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
     
+    // Fetch all sessions (no filter to ensure old data loads)
     const q = query(collection(db, `users/${currentUser.uid}/sessions`));
     const snapshot = await getDocs(q);
     const sessionsList = [];
@@ -191,6 +206,7 @@ async function loadSessions() {
         });
     });
 
+    // Client-side Sort
     sessionsList.sort((a, b) => {
         const orderA = a.sortOrder !== undefined ? a.sortOrder : 0; 
         const orderB = b.sortOrder !== undefined ? b.sortOrder : 0;
@@ -239,13 +255,13 @@ window.confirmDeleteSession = (id, name) => {
 };
 document.getElementById("cancel-delete").onclick = () => document.getElementById("delete-confirm-modal").classList.add("hidden");
 
-// --- CREATE SESSION (WITH RESET FIX) ---
+// --- CREATE SESSION (WITH RESET & FIX) ---
 document.getElementById("add-session-fab").onclick = () => {
-    // FIX: Clear fields every time the modal opens
+    // RESET FIELDS
     document.getElementById("new-session-name").value = "";
     document.getElementById("new-session-date").value = "";
     document.getElementById("new-session-target").value = "75";
-    document.getElementById("new-session-position").value = "top"; // Reset to top
+    document.getElementById("new-session-position").value = "top"; 
     
     document.getElementById("create-modal").classList.remove("hidden");
 };
@@ -261,6 +277,7 @@ document.getElementById("confirm-create").onclick = async () => {
     if(!name || !date) return showToast("Fill all fields");
     if(!target) target = 75; 
 
+    // Negative Sort Logic
     let orderValue = Date.now(); 
     if(position === 'bottom') orderValue = -Date.now();
 
@@ -437,14 +454,11 @@ function renderCalendar() {
         } else {
             let status = "Present";
             let hasNote = false;
-            
             if(isDefaultHoliday(dateStr)) status = "Holiday";
-            
             if(sessionExceptions[dateStr]) {
                 status = sessionExceptions[dateStr].status;
                 if(sessionExceptions[dateStr].note) hasNote = true;
             }
-
             div.classList.add(`day-${status.toLowerCase()}`);
             if(hasNote) div.classList.add("note-marker");
 
@@ -488,7 +502,6 @@ async function toggleDay(dateStr, currentStatus) {
     if(newStatus === "Present" && !dataToSave.note) {
         if(isDefaultHoliday(dateStr)) await setDoc(ref, { status: "Present" });
         else await deleteDoc(ref);
-        
         if(!isDefaultHoliday(dateStr)) delete sessionExceptions[dateStr];
     } else {
         await setDoc(ref, dataToSave);
@@ -528,6 +541,7 @@ document.getElementById("delete-note-btn").onclick = async () => {
 };
 document.getElementById("close-note-modal").onclick = () => document.getElementById("note-modal").classList.add("hidden");
 
+// --- CALCULATIONS ---
 function calculateAttendance() {
     let total = 0, present = 0;
     let loopDate = new Date(sessionData.startDate);
@@ -612,11 +626,6 @@ document.getElementById("confirm-end").onclick = async () => {
     loadSessions();
     showScreen('dashboard');
 };
-
-function showScreen(id) {
-    Object.values(screens).forEach(s => s.classList.add("hidden"));
-    screens[id].classList.remove("hidden");
-}
 
 async function checkAdmin() {
     const docSnap = await getDoc(doc(db, "users", currentUser.uid));
