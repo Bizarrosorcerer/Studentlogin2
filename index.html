@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>StudentLogin Ultimate Analytics</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>StudentLogin Ultimate Polish</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -55,7 +55,6 @@
         </div>
 
         <div id="sessions-container"></div>
-
         <p id="admin-link" class="hidden" style="margin-top:20px; color:#ff0055; cursor:pointer; font-size:0.8em; text-align: center;">Admin Directory</p>
     </div>
 
@@ -102,6 +101,9 @@
                 <div class="legend-item"><span class="square blue"></span> Holiday</div>
                 <div class="legend-item"><span class="icon-legend">📝</span> Note</div>
             </div>
+            <div class="legend-instruction">
+                (Long press any date to add a note)
+            </div>
 
             <div class="calendar-wrapper">
                 <div class="calendar-nav">
@@ -143,6 +145,31 @@
                 <button id="btn-remove-photo" class="menu-item danger">🗑️ Remove Photo</button>
             </div>
             <button id="close-profile-options" class="btn-text-full">Cancel</button>
+        </div>
+    </div>
+
+    <div id="create-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>New Session</h3>
+            <label>Name:</label>
+            <input type="text" id="new-session-name" placeholder="Subject Name">
+            
+            <label>Start Date:</label>
+            <input type="date" id="new-session-date"> 
+            
+            <label>Target %:</label>
+            <input type="number" id="new-session-target" placeholder="75" value="75">
+            
+            <label>Position in List:</label>
+            <select id="new-session-position" class="full-select">
+                <option value="top" selected>Add to Top (Newest)</option>
+                <option value="bottom">Add to Bottom</option>
+            </select>
+
+            <div class="modal-actions">
+                <button id="cancel-create" class="btn-text">Cancel</button>
+                <button id="confirm-create" class="btn-primary">Create</button>
+            </div>
         </div>
     </div>
 
@@ -202,22 +229,6 @@
             </div>
         </div>
     </div>
-
-    <div id="create-modal" class="modal hidden">
-        <div class="modal-content">
-            <h3>New Session</h3>
-            <label>Name:</label>
-            <input type="text" id="new-session-name" placeholder="Subject Name">
-            <label>Start Date:</label>
-            <input type="date" id="new-session-date"> 
-            <label>Target %:</label>
-            <input type="number" id="new-session-target" placeholder="75" value="75">
-            <div class="modal-actions">
-                <button id="cancel-create" class="btn-text">Cancel</button>
-                <button id="confirm-create" class="btn-primary">Create</button>
-            </div>
-        </div>
-    </div>
     
     <div id="end-modal" class="modal hidden">
         <div class="modal-content">
@@ -239,6 +250,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=ANALYTICS_V1"></script>
+    <script type="module" src="app.js?v=POLISHED_FINAL"></script>
 </body>
 </html>
