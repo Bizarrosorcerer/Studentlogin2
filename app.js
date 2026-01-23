@@ -15,14 +15,13 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ENABLE OFFLINE PERSISTENCE
 enableIndexedDbPersistence(db).catch((err) => {
     console.log("Persistence error:", err.code);
 });
 
 const provider = new GoogleAuthProvider();
 
-// --- GLOBAL VARIABLES ---
+// --- VARIABLES ---
 let currentUser = null;
 let currentSessionId = null;
 let sessionExceptions = {}; 
@@ -42,7 +41,6 @@ const screens = {
     detail: document.getElementById("session-detail-screen")
 };
 
-// --- UTILITIES ---
 function showToast(msg, type="error") {
     const container = document.getElementById("toast-container");
     const toast = document.createElement("div");
@@ -52,7 +50,6 @@ function showToast(msg, type="error") {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// THEME TOGGLE
 const themeBtns = document.querySelectorAll(".theme-toggle");
 if(localStorage.getItem("theme") === "dark") document.body.setAttribute("data-theme", "dark");
 themeBtns.forEach(btn => {
@@ -67,7 +64,7 @@ themeBtns.forEach(btn => {
     };
 });
 
-// --- AUTHENTICATION ---
+// --- AUTH ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -96,7 +93,6 @@ if(loginBtn) {
     loginBtn.addEventListener("click", () => {
         const isSetupMode = !document.getElementById("first-time-setup").classList.contains("hidden");
         const nameInput = document.getElementById("display-name-input").value;
-        
         if(isSetupMode && !nameInput) return showToast("Please confirm your name", "error");
 
         signInWithPopup(auth, provider).then(async (result) => {
@@ -113,7 +109,7 @@ if(loginBtn) {
 }
 document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
 
-// --- PROFILE LOGIC ---
+// --- PROFILE ---
 function loadProfile(data) {
     document.getElementById("user-name-text").innerText = data.name;
     document.getElementById("user-email").innerText = data.email;
@@ -168,7 +164,6 @@ document.getElementById("profile-upload").onchange = async (e) => {
     const file = e.target.files[0];
     if(!file) return;
     if (file.size > 5 * 1024 * 1024) return showToast("Image too large (Max 5MB)");
-    
     const reader = new FileReader();
     reader.onload = async function(evt) {
         const base64 = evt.target.result;
@@ -180,16 +175,12 @@ document.getElementById("profile-upload").onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
-// --- SESSION MANAGEMENT ---
-
-// 1. SAFE LOAD (Shows Old & New Data)
+// --- SESSION LIST ---
 async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
     
-    // Fetch ALL sessions (no filter)
     const q = query(collection(db, `users/${currentUser.uid}/sessions`));
-    
     const snapshot = await getDocs(q);
     const sessionsList = [];
 
@@ -200,13 +191,12 @@ async function loadSessions() {
         });
     });
 
-    // Manual Sort
     sessionsList.sort((a, b) => {
         const orderA = a.sortOrder !== undefined ? a.sortOrder : 0; 
         const orderB = b.sortOrder !== undefined ? b.sortOrder : 0;
         
         if (orderA !== orderB) {
-            return orderB - orderA; // High to Low (Positive > 0 > Negative)
+            return orderB - orderA; 
         }
         return new Date(b.startDate) - new Date(a.startDate);
     });
@@ -249,8 +239,17 @@ window.confirmDeleteSession = (id, name) => {
 };
 document.getElementById("cancel-delete").onclick = () => document.getElementById("delete-confirm-modal").classList.add("hidden");
 
-// 2. CREATE SESSION (FIXED BOTTOM LOGIC)
-document.getElementById("add-session-fab").onclick = () => document.getElementById("create-modal").classList.remove("hidden");
+// --- CREATE SESSION (WITH RESET FIX) ---
+document.getElementById("add-session-fab").onclick = () => {
+    // FIX: Clear fields every time the modal opens
+    document.getElementById("new-session-name").value = "";
+    document.getElementById("new-session-date").value = "";
+    document.getElementById("new-session-target").value = "75";
+    document.getElementById("new-session-position").value = "top"; // Reset to top
+    
+    document.getElementById("create-modal").classList.remove("hidden");
+};
+
 document.getElementById("cancel-create").onclick = () => document.getElementById("create-modal").classList.add("hidden");
 
 document.getElementById("confirm-create").onclick = async () => {
@@ -262,7 +261,6 @@ document.getElementById("confirm-create").onclick = async () => {
     if(!name || !date) return showToast("Fill all fields");
     if(!target) target = 75; 
 
-    // --- LOGIC FIX: Top = +Time, Bottom = -Time ---
     let orderValue = Date.now(); 
     if(position === 'bottom') orderValue = -Date.now();
 
@@ -323,7 +321,6 @@ function switchTab(tabName) {
     }
 }
 
-// --- ANALYTICS ---
 function renderAnalytics() {
     if(trendChart) trendChart.destroy();
     if(distChart) distChart.destroy();
@@ -394,7 +391,6 @@ function renderAnalytics() {
     });
 }
 
-// Target Logic
 document.getElementById("edit-target-btn").onclick = () => {
     if(sessionData.status === "Ended") return showToast("Session Frozen", "error");
     document.getElementById("target-input-field").value = sessionData.target;
@@ -414,7 +410,6 @@ document.getElementById("save-target-btn").onclick = async () => {
 
 document.getElementById("back-btn").onclick = () => showScreen('dashboard');
 
-// --- CALENDAR RENDER ---
 function renderCalendar() {
     const grid = document.getElementById("calendar-days");
     grid.innerHTML = "";
@@ -500,7 +495,6 @@ async function toggleDay(dateStr, currentStatus) {
     }
 }
 
-// --- NOTES ---
 function openNoteModal(dateStr) {
     selectedDateForNote = dateStr;
     const modal = document.getElementById("note-modal");
@@ -534,7 +528,6 @@ document.getElementById("delete-note-btn").onclick = async () => {
 };
 document.getElementById("close-note-modal").onclick = () => document.getElementById("note-modal").classList.add("hidden");
 
-// --- CALCULATIONS ---
 function calculateAttendance() {
     let total = 0, present = 0;
     let loopDate = new Date(sessionData.startDate);
