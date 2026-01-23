@@ -36,7 +36,7 @@ let distChart = null;
 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
-// SCREENS
+// SCREENS (Included Splash)
 const screens = {
     splash: document.getElementById("splash-screen"),
     login: document.getElementById("login-screen"),
@@ -69,7 +69,7 @@ themeBtns.forEach(btn => {
 
 // --- AUTH & SPLASH LOGIC ---
 onAuthStateChanged(auth, async (user) => {
-    // This runs on app load. We determine which screen to show.
+    // Wait for auth check before deciding screen
     if (user) {
         currentUser = user;
         const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -81,7 +81,7 @@ onAuthStateChanged(auth, async (user) => {
             checkAdmin();
             setTimeout(() => showScreen('dashboard'), 500); // Smooth transition
         } else {
-            // NEW USER (Needs Setup)
+            // NEW USER
             if(user.displayName) document.getElementById("display-name-input").value = user.displayName;
             document.getElementById("first-time-setup").classList.remove("hidden");
             showScreen('login');
@@ -107,28 +107,19 @@ if(loginBtn) {
         if(isSetupMode && !nameInput) return showToast("Please confirm your name", "error");
 
         signInWithPopup(auth, provider).then(async (result) => {
-            // --- FIX: Show Splash IMMEDIATELY after popup closes ---
-            showScreen('splash'); 
-
             if(isSetupMode || nameInput) {
                 await setDoc(doc(db, "users", result.user.uid), {
                     name: nameInput || result.user.displayName,
                     email: result.user.email,
                     photo: null 
                 }, { merge: true });
-                // We let onAuthStateChanged handle the redirect now
+                window.location.reload(); 
             }
-        }).catch(err => {
-            console.error(err);
-            showToast("Login failed. Try again.");
-            // If failed, go back to login screen
-            showScreen('login');
-        });
+        }).catch(err => showToast(err.message));
     });
 }
-
 document.getElementById("logout-btn").addEventListener("click", () => {
-    showScreen('splash'); // Show splash while logging out
+    showScreen('splash'); // Show loading when logging out
     signOut(auth);
 });
 
@@ -203,7 +194,7 @@ async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
     
-    // Fetch ALL sessions
+    // Fetch all sessions (no filter to ensure old data loads)
     const q = query(collection(db, `users/${currentUser.uid}/sessions`));
     const snapshot = await getDocs(q);
     const sessionsList = [];
@@ -215,7 +206,7 @@ async function loadSessions() {
         });
     });
 
-    // Client Side Sort (Positive > 0 > Negative)
+    // Client-side Sort
     sessionsList.sort((a, b) => {
         const orderA = a.sortOrder !== undefined ? a.sortOrder : 0; 
         const orderB = b.sortOrder !== undefined ? b.sortOrder : 0;
@@ -264,7 +255,7 @@ window.confirmDeleteSession = (id, name) => {
 };
 document.getElementById("cancel-delete").onclick = () => document.getElementById("delete-confirm-modal").classList.add("hidden");
 
-// --- CREATE SESSION (RESET + NEGATIVE SORT) ---
+// --- CREATE SESSION (WITH RESET & FIX) ---
 document.getElementById("add-session-fab").onclick = () => {
     // RESET FIELDS
     document.getElementById("new-session-name").value = "";
@@ -286,7 +277,7 @@ document.getElementById("confirm-create").onclick = async () => {
     if(!name || !date) return showToast("Fill all fields");
     if(!target) target = 75; 
 
-    // Top = Positive Time, Bottom = Negative Time
+    // Negative Sort Logic
     let orderValue = Date.now(); 
     if(position === 'bottom') orderValue = -Date.now();
 
@@ -635,11 +626,6 @@ document.getElementById("confirm-end").onclick = async () => {
     loadSessions();
     showScreen('dashboard');
 };
-
-function showScreen(id) {
-    Object.values(screens).forEach(s => s.classList.add("hidden"));
-    screens[id].classList.remove("hidden");
-}
 
 async function checkAdmin() {
     const docSnap = await getDoc(doc(db, "users", currentUser.uid));
