@@ -109,9 +109,7 @@
                 <div class="legend-item"><span class="square blue"></span> Holiday</div>
                 <div class="legend-item"><span class="icon-legend">📝</span> Note</div>
             </div>
-            <div class="legend-instruction">
-                (Long press any date to add a note)
-            </div>
+            <div class="legend-instruction">(Long press any date to add a note)</div>
 
             <div class="calendar-wrapper">
                 <div class="calendar-nav">
@@ -127,6 +125,28 @@
         </div>
 
         <div id="view-insights" class="hidden">
+            <div class="prediction-container">
+                <div class="prediction-header">
+                    <h3>🔮 Predictor</h3>
+                    <div class="toggle-switch">
+                        <div id="pred-attend" class="toggle-opt active attend">Attend</div>
+                        <div id="pred-bunk" class="toggle-opt">Bunk</div>
+                    </div>
+                </div>
+                
+                <p style="font-size:0.85em; color:var(--text-sub); margin-bottom:10px;">
+                    Next <span id="slider-val-display" style="font-weight:bold;">1</span> classes:
+                </p>
+                
+                <div class="slider-container">
+                    <input type="range" id="pred-slider" min="1" max="20" value="1">
+                </div>
+
+                <div class="prediction-result" id="prediction-text">
+                    Move slider to simulate.
+                </div>
+            </div>
+
             <div class="chart-container">
                 <h3>📈 Attendance Trend</h3>
                 <canvas id="trendChart"></canvas>
@@ -256,6 +276,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=FINAL_VERSION"></script>
+    <script type="module" src="app.js?v=FINAL_PRO"></script>
 </body>
 </html>
