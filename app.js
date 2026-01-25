@@ -31,6 +31,12 @@ let trendChart = null;
 let distChart = null; 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
+// Global storage for Chart Data (to use in prediction)
+let historyLabels = [];
+let historyData = [];
+let lastTotalClasses = 0;
+let lastPresentClasses = 0;
+
 const screens = {
     splash: document.getElementById("splash-screen"),
     login: document.getElementById("login-screen"),
@@ -62,6 +68,9 @@ themeBtns.forEach(btn => {
         document.body.setAttribute("data-theme", currentTheme);
         localStorage.setItem("theme", currentTheme);
         updateThemeIcon(currentTheme);
+        
+        // Update Chart Colors on theme change
+        if(trendChart) renderAnalytics();
     };
 });
 
@@ -70,7 +79,7 @@ function updateThemeIcon(theme) {
     themeBtns.forEach(btn => btn.innerText = icons[theme]);
 }
 
-// --- AUTH & SPLASH ---
+// --- AUTH ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -187,7 +196,7 @@ document.getElementById("profile-upload").onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
-// --- SESSION LIST (DASHBOARD RINGS) ---
+// --- SESSION LIST ---
 async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
@@ -246,7 +255,12 @@ async function loadSessions() {
         div.className = "session-card";
         const statusClass = session.status === 'Ongoing' ? 'ongoing' : 'ended';
         
-        // RINGS
+        // RINGS LOGIC
+        let ringColor = "var(--success)";
+        if(session.percent < session.target) ringColor = "var(--danger)";
+        else if(session.percent < session.target + 10) ringColor = "#F1C40F";
+
+        // HTML
         div.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div class="card-title-row" style="flex:1;">
@@ -258,7 +272,7 @@ async function loadSessions() {
                 </div>
                 
                 <div class="progress-ring-container">
-                    <div class="progress-ring" style="--p: ${session.percent}%;">
+                    <div class="progress-ring" style="--p: ${session.percent}%; --accent: ${ringColor}">
                         <span class="progress-text">${session.percent}%</span>
                     </div>
                 </div>
@@ -283,7 +297,7 @@ window.confirmDeleteSession = (id, name) => {
 };
 document.getElementById("cancel-delete").onclick = () => document.getElementById("delete-confirm-modal").classList.add("hidden");
 
-// --- CREATE SESSION (UNIQUE NAME + RESET) ---
+// --- CREATE SESSION ---
 document.getElementById("add-session-fab").onclick = () => {
     document.getElementById("new-session-name").value = "";
     document.getElementById("new-session-date").value = "";
@@ -301,7 +315,6 @@ document.getElementById("confirm-create").onclick = async () => {
     if(!name || !date) return showToast("Fill all fields");
     if(!target) target = 75; 
 
-    // UNIQUE CHECK
     const q = query(collection(db, `users/${currentUser.uid}/sessions`), where("name", "==", name));
     const existingCheck = await getDocs(q);
     if (!existingCheck.empty) return showToast("Session name already exists!", "error");
@@ -322,7 +335,7 @@ document.getElementById("confirm-create").onclick = async () => {
     loadSessions();
 };
 
-// --- SESSION DETAIL & PREDICTOR ---
+// --- SESSION DETAIL ---
 async function openSession(sessId, data) {
     currentSessionId = sessId;
     sessionData = data;
@@ -344,7 +357,6 @@ async function openSession(sessId, data) {
     renderCalendar();
     calculateAttendance(); 
     
-    // Reset Predictor
     document.getElementById("pred-slider").value = 1;
     document.getElementById("slider-val-display").innerText = "1";
     document.getElementById("prediction-text").innerText = "Move slider to simulate.";
@@ -373,18 +385,17 @@ function switchTab(tabName) {
     }
 }
 
-// --- ANALYTICS & PREDICTION ---
-let totalClasses = 0;
-let presentClasses = 0;
-
+// --- ANALYTICS & PREDICTION LOGIC ---
 function renderAnalytics() {
     if(trendChart) trendChart.destroy();
     if(distChart) distChart.destroy();
 
-    totalClasses = 0; 
-    presentClasses = 0;
+    // Reset Global Stats
+    historyLabels = [];
+    historyData = [];
+    lastTotalClasses = 0;
+    lastPresentClasses = 0;
     let absent = 0, holiday = 0;
-    let labels = [], dataPoints = [];
     
     let loopDate = new Date(sessionData.startDate);
     let today = new Date();
@@ -396,40 +407,55 @@ function renderAnalytics() {
         else if(isDefaultHoliday(dStr)) status = "Holiday";
 
         if(status !== "Holiday") {
-            totalClasses++;
-            if(status === "Present") presentClasses++;
+            lastTotalClasses++;
+            if(status === "Present") lastPresentClasses++;
             else absent++;
             
-            let pct = (presentClasses / totalClasses) * 100;
-            labels.push(dStr.substring(5)); 
-            dataPoints.push(pct.toFixed(1));
+            let pct = (lastPresentClasses / lastTotalClasses) * 100;
+            // Store for Chart
+            historyLabels.push(dStr.substring(5)); 
+            historyData.push(pct.toFixed(1));
         } else {
             holiday++;
         }
         loopDate.setDate(loopDate.getDate() + 1);
     }
 
-    updatePrediction(); // Update on load
+    updatePrediction(); // Init text
 
+    // CHART.JS CONFIG
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     trendChart = new Chart(ctxTrend, {
         type: 'line',
         data: {
-            labels: labels,
-            datasets: [{
-                label: 'Attendance %',
-                data: dataPoints,
-                borderColor: '#6C5CE7',
-                backgroundColor: 'rgba(108, 92, 231, 0.1)',
-                fill: true,
-                tension: 0.3
-            }, {
-                label: 'Target',
-                data: Array(labels.length).fill(sessionData.target),
-                borderColor: '#FF4757',
-                borderDash: [5, 5],
-                pointRadius: 0
-            }]
+            labels: [...historyLabels], // Clone to avoid ref issues
+            datasets: [
+                {
+                    label: 'History',
+                    data: [...historyData],
+                    borderColor: '#6C5CE7',
+                    backgroundColor: 'rgba(108, 92, 231, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Prediction',
+                    data: [], // Starts empty
+                    borderColor: '#00B894', // Green/Teal for prediction
+                    borderDash: [5, 5], // Dotted Line
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#00B894',
+                    fill: false,
+                    tension: 0.3
+                },
+                {
+                    label: 'Target',
+                    data: Array(historyLabels.length).fill(sessionData.target),
+                    borderColor: '#FF4757',
+                    borderDash: [2, 2],
+                    pointRadius: 0
+                }
+            ]
         },
         options: {
             responsive: true,
@@ -443,18 +469,20 @@ function renderAnalytics() {
         data: {
             labels: ['Present', 'Absent', 'Holidays'],
             datasets: [{
-                data: [presentClasses, absent, holiday],
+                data: [lastPresentClasses, absent, holiday],
                 backgroundColor: ['#00B894', '#FF4757', '#0984e3']
             }]
         }
     });
 }
 
+// --- PREDICTION + GRAPH UPDATE ---
 function initPredictionLogic() {
     const slider = document.getElementById("pred-slider");
     const attendBtn = document.getElementById("pred-attend");
     const bunkBtn = document.getElementById("pred-bunk");
     
+    // Toggle Event Listeners
     attendBtn.onclick = () => {
         attendBtn.classList.add("active");
         bunkBtn.classList.remove("active");
@@ -466,6 +494,7 @@ function initPredictionLogic() {
         updatePrediction();
     };
     
+    // Slider Event Listener
     slider.oninput = (e) => {
         document.getElementById("slider-val-display").innerText = e.target.value;
         updatePrediction();
@@ -476,29 +505,74 @@ function updatePrediction() {
     const sliderVal = Number(document.getElementById("pred-slider").value);
     const isAttend = document.getElementById("pred-attend").classList.contains("active");
     
-    let simulatedTotal = totalClasses + sliderVal;
-    let simulatedPresent = presentClasses;
+    // 1. Calculate Future Stats
+    let simTotal = lastTotalClasses;
+    let simPresent = lastPresentClasses;
+    let projectedData = [];
     
-    if(isAttend) {
-        simulatedPresent += sliderVal;
+    // Start simulation from the last real percentage
+    // Fill the beginning of projected array with nulls to align with history
+    let emptySlots = Array(historyData.length - 1).fill(null);
+    projectedData = [...emptySlots, historyData[historyData.length - 1]]; // Connect line
+
+    let futureLabels = [];
+
+    // Loop for slider value (1 to 20 simulation steps)
+    for(let i=1; i<=sliderVal; i++) {
+        simTotal++;
+        if(isAttend) simPresent++;
+        
+        let newPct = (simPresent / simTotal) * 100;
+        projectedData.push(newPct.toFixed(1));
+        futureLabels.push(`+${i}`);
     }
-    
-    let currentPct = totalClasses === 0 ? 100 : (presentClasses / totalClasses) * 100;
-    let newPct = (simulatedPresent / simulatedTotal) * 100;
-    
-    let diff = newPct - currentPct;
+
+    // 2. Update UI Text
+    let currentPct = lastTotalClasses === 0 ? 100 : (lastPresentClasses / lastTotalClasses) * 100;
+    let finalPct = (simPresent / simTotal) * 100;
+    let diff = finalPct - currentPct;
     let diffStr = diff >= 0 ? `+${diff.toFixed(2)}%` : `${diff.toFixed(2)}%`;
     let color = diff >= 0 ? "var(--success)" : "var(--danger)";
     let actionWord = isAttend ? "attend" : "bunk";
     
     document.getElementById("prediction-text").innerHTML = `
-        If you <b>${actionWord}</b> the next <b>${sliderVal}</b> classes:<br>
-        Your attendance will be <span class="pred-highlight">${newPct.toFixed(2)}%</span>
+        If you <b>${actionWord}</b> next <b>${sliderVal}</b> classes:<br>
+        Result: <span class="pred-highlight">${finalPct.toFixed(2)}%</span>
         (<span style="color:${color}">${diffStr}</span>)
     `;
+
+    // 3. Update Chart LIVE
+    if(trendChart) {
+        // Extend Labels
+        trendChart.data.labels = [...historyLabels, ...futureLabels];
+        
+        // Update Prediction Dataset
+        // We need padding (nulls) so the dotted line starts where history ends
+        let padding = Array(historyData.length - 1).fill(null);
+        let connectPoint = historyData[historyData.length - 1]; // The joint
+        
+        let plotPoints = [connectPoint]; 
+        
+        // Recalculate simulation for plot points
+        let pTotal = lastTotalClasses;
+        let pPresent = lastPresentClasses;
+        
+        for(let i=1; i<=sliderVal; i++) {
+            pTotal++;
+            if(isAttend) pPresent++;
+            plotPoints.push(((pPresent/pTotal)*100).toFixed(1));
+        }
+
+        trendChart.data.datasets[1].data = [...padding, ...plotPoints];
+        
+        // Extend Target Line
+        trendChart.data.datasets[2].data = Array(trendChart.data.labels.length).fill(sessionData.target);
+        
+        trendChart.update();
+    }
 }
 
-// --- STANDARD FUNCTIONS ---
+// --- STANDARD FUNCTIONS (Calendar, Target, etc.) ---
 document.getElementById("edit-target-btn").onclick = () => {
     if(sessionData.status === "Ended") return showToast("Session Frozen", "error");
     document.getElementById("target-input-field").value = sessionData.target;
