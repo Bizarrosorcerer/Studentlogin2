@@ -31,9 +31,9 @@ let trendChart = null;
 let distChart = null; 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
-// PERSISTENCE GLOBALS (These now keep your settings!)
+// PERSISTENCE GLOBALS
 let predSliderValue = 1;
-let predMode = 'attend'; // or 'bunk'
+let predMode = 'attend'; 
 
 // Global Stats
 let historyLabels = [];
@@ -72,7 +72,6 @@ themeBtns.forEach(btn => {
         document.body.setAttribute("data-theme", currentTheme);
         localStorage.setItem("theme", currentTheme);
         updateThemeIcon(currentTheme);
-        // FORCE REDRAW IF VISIBLE TO UPDATE COLORS
         if(!document.getElementById("view-insights").classList.contains("hidden")) {
             renderAnalytics();
         }
@@ -358,6 +357,10 @@ async function openSession(sessId, data) {
     // Default open to Calendar
     switchTab('calendar');
     
+    // IMPORTANT: Reset Predictor Defaults when OPENING a session
+    predSliderValue = 1;
+    predMode = 'attend';
+    
     renderCalendar();
     calculateAttendance(); 
     showScreen('detail');
@@ -368,13 +371,16 @@ const tabIns = document.getElementById("tab-insights");
 tabCal.onclick = () => switchTab('calendar');
 tabIns.onclick = () => switchTab('insights');
 
-// --- THE FIX IS HERE: TIMING LOGIC ---
 function switchTab(tabName) {
     if(tabName === 'calendar') {
         document.getElementById("view-calendar").classList.remove("hidden");
         document.getElementById("view-insights").classList.add("hidden");
         tabCal.classList.add("active");
         tabIns.classList.remove("active");
+        
+        // --- FIX: RESET PREDICTOR WHEN LEAVING INSIGHTS ---
+        predSliderValue = 1;
+        predMode = 'attend';
     } else {
         document.getElementById("view-calendar").classList.add("hidden");
         document.getElementById("view-insights").classList.remove("hidden");
@@ -385,23 +391,21 @@ function switchTab(tabName) {
         setTimeout(() => {
             initPredictionLogic(); 
             renderAnalytics(); 
-        }, 100); // 100ms delay is imperceptible but allows layout to settle
+        }, 100); 
     }
 }
 
-// --- RENDER ANALYTICS (FIXED CONTAINER + PERSISTENCE) ---
+// --- RENDER ANALYTICS ---
 function renderAnalytics() {
     if(trendChart) { trendChart.destroy(); trendChart = null; }
     if(distChart) { distChart.destroy(); distChart = null; }
 
-    // 1. CLEAR DOM TO FORCE RE-DRAW
     const trendWrap = document.getElementById("trendWrapper");
     const distWrap = document.getElementById("distWrapper");
     
     trendWrap.innerHTML = '<h3>📈 Attendance Trend</h3><div style="position:relative; height:250px; width:100%"><canvas id="trendChart"></canvas></div>';
     distWrap.innerHTML = '<h3>🍰 Distribution</h3><div style="position:relative; height:200px; width:100%"><canvas id="distributionChart"></canvas></div>';
 
-    // 2. RE-CALC STATS
     historyLabels = [];
     historyData = [];
     lastTotalClasses = 0;
@@ -431,11 +435,9 @@ function renderAnalytics() {
         loopDate.setDate(loopDate.getDate() + 1);
     }
 
-    // 3. APPLY PERSISTENT SETTINGS
-    // We use the global 'predSliderValue' and 'predMode' which are NOT reset
+    // Restore UI from Globals
     document.getElementById("pred-slider").value = predSliderValue;
     document.getElementById("slider-val-display").innerText = predSliderValue;
-    
     const attendBtn = document.getElementById("pred-attend");
     const bunkBtn = document.getElementById("pred-bunk");
     
@@ -447,7 +449,8 @@ function renderAnalytics() {
         attendBtn.classList.remove("active");
     }
 
-    // 4. DRAW CHARTS
+    updatePredictionText(); 
+
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     trendChart = new Chart(ctxTrend, {
         type: 'line',
@@ -485,7 +488,7 @@ function renderAnalytics() {
             responsive: true,
             maintainAspectRatio: false,
             scales: { y: { min: 0, max: 100 } },
-            animation: false // No animation on tab switch = faster feel
+            animation: false 
         }
     });
 
@@ -505,7 +508,7 @@ function renderAnalytics() {
         }
     });
     
-    updatePrediction(); 
+    updatePredictionGraph(); 
 }
 
 function initPredictionLogic() {
@@ -513,18 +516,18 @@ function initPredictionLogic() {
     const attendBtn = document.getElementById("pred-attend");
     const bunkBtn = document.getElementById("pred-bunk");
     
-    // Clear old listeners
+    // Remove old listeners
     attendBtn.onclick = null; bunkBtn.onclick = null; slider.oninput = null;
 
     attendBtn.onclick = () => {
-        predMode = 'attend'; // SAVE STATE
+        predMode = 'attend'; 
         attendBtn.classList.add("active");
         bunkBtn.classList.remove("active");
         updatePredictionText();
         updatePredictionGraph();
     };
     bunkBtn.onclick = () => {
-        predMode = 'bunk'; // SAVE STATE
+        predMode = 'bunk'; 
         bunkBtn.classList.add("active");
         attendBtn.classList.remove("active");
         updatePredictionText();
@@ -532,7 +535,7 @@ function initPredictionLogic() {
     };
     
     slider.oninput = (e) => {
-        predSliderValue = e.target.value; // SAVE STATE
+        predSliderValue = e.target.value; 
         document.getElementById("slider-val-display").innerText = e.target.value;
         updatePredictionText();
         updatePredictionGraph();
@@ -616,7 +619,11 @@ document.getElementById("save-target-btn").onclick = async () => {
     showToast("Target Updated", "success");
 };
 
-document.getElementById("back-btn").onclick = () => showScreen('dashboard');
+// --- REAL-TIME SYNC FIX ---
+document.getElementById("back-btn").onclick = () => {
+    showScreen('dashboard');
+    loadSessions(); // FORCE RELOAD when returning to Dashboard
+};
 
 function renderCalendar() {
     const grid = document.getElementById("calendar-days");
