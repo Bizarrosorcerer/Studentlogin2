@@ -15,7 +15,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Enable Offline Persistence
 enableIndexedDbPersistence(db).catch((err) => { console.log("Persistence error:", err.code); });
 const provider = new GoogleAuthProvider();
 
@@ -32,11 +31,11 @@ let trendChart = null;
 let distChart = null; 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
-// PERSISTENCE GLOBALS (These keep your slider settings alive)
+// PERSISTENCE GLOBALS (These now keep your settings!)
 let predSliderValue = 1;
 let predMode = 'attend'; // or 'bunk'
 
-// Chart Data Storage
+// Global Stats
 let historyLabels = [];
 let historyData = [];
 let lastTotalClasses = 0;
@@ -73,7 +72,7 @@ themeBtns.forEach(btn => {
         document.body.setAttribute("data-theme", currentTheme);
         localStorage.setItem("theme", currentTheme);
         updateThemeIcon(currentTheme);
-        // Redraw chart if visible to update colors
+        // FORCE REDRAW IF VISIBLE TO UPDATE COLORS
         if(!document.getElementById("view-insights").classList.contains("hidden")) {
             renderAnalytics();
         }
@@ -85,7 +84,7 @@ function updateThemeIcon(theme) {
     themeBtns.forEach(btn => btn.innerText = icons[theme]);
 }
 
-// --- AUTHENTICATION ---
+// --- AUTH ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -359,12 +358,6 @@ async function openSession(sessId, data) {
     // Default open to Calendar
     switchTab('calendar');
     
-    // IMPORTANT: Reset prediction data ONLY on new session open
-    // If returning from same session tab, we use global vars
-    // But since we open a fresh session, logical reset is fine here?
-    // User wants PERSISTENCE when switching tabs.
-    // So we DON'T reset here. We rely on global variables.
-    
     renderCalendar();
     calculateAttendance(); 
     showScreen('detail');
@@ -388,29 +381,27 @@ function switchTab(tabName) {
         tabCal.classList.remove("active");
         tabIns.classList.add("active");
         
-        // NUCLEAR FIX: Use requestAnimationFrame to ensure browser paints first
-        // This makes sure the <div> is visible and has size BEFORE chart draws
-        window.requestAnimationFrame(() => {
-            window.requestAnimationFrame(() => {
-                initPredictionLogic(); 
-                renderAnalytics(); 
-            });
-        });
+        // NUCLEAR FIX: DELAY RENDERING TO ALLOW DOM REFLOW
+        setTimeout(() => {
+            initPredictionLogic(); 
+            renderAnalytics(); 
+        }, 100); // 100ms delay is imperceptible but allows layout to settle
     }
 }
 
-// --- RENDER ANALYTICS ---
+// --- RENDER ANALYTICS (FIXED CONTAINER + PERSISTENCE) ---
 function renderAnalytics() {
-    // 1. Destroy old instances
     if(trendChart) { trendChart.destroy(); trendChart = null; }
     if(distChart) { distChart.destroy(); distChart = null; }
 
-    // 2. Reset DOM Containers to force clean slate
-    // Added fixed height style directly here to prevent layout shift
-    document.getElementById("trendWrapper").innerHTML = '<h3>📈 Attendance Trend</h3><div style="position:relative; height:250px; width:100%"><canvas id="trendChart"></canvas></div>';
-    document.getElementById("distWrapper").innerHTML = '<h3>🍰 Distribution</h3><div style="position:relative; height:200px; width:100%"><canvas id="distributionChart"></canvas></div>';
+    // 1. CLEAR DOM TO FORCE RE-DRAW
+    const trendWrap = document.getElementById("trendWrapper");
+    const distWrap = document.getElementById("distWrapper");
+    
+    trendWrap.innerHTML = '<h3>📈 Attendance Trend</h3><div style="position:relative; height:250px; width:100%"><canvas id="trendChart"></canvas></div>';
+    distWrap.innerHTML = '<h3>🍰 Distribution</h3><div style="position:relative; height:200px; width:100%"><canvas id="distributionChart"></canvas></div>';
 
-    // 3. Recalculate Logic
+    // 2. RE-CALC STATS
     historyLabels = [];
     historyData = [];
     lastTotalClasses = 0;
@@ -440,9 +431,11 @@ function renderAnalytics() {
         loopDate.setDate(loopDate.getDate() + 1);
     }
 
-    // 4. Restore Prediction UI from Globals
+    // 3. APPLY PERSISTENT SETTINGS
+    // We use the global 'predSliderValue' and 'predMode' which are NOT reset
     document.getElementById("pred-slider").value = predSliderValue;
     document.getElementById("slider-val-display").innerText = predSliderValue;
+    
     const attendBtn = document.getElementById("pred-attend");
     const bunkBtn = document.getElementById("pred-bunk");
     
@@ -454,9 +447,7 @@ function renderAnalytics() {
         attendBtn.classList.remove("active");
     }
 
-    updatePredictionText(); // Update just text first
-
-    // 5. Draw Charts
+    // 4. DRAW CHARTS
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     trendChart = new Chart(ctxTrend, {
         type: 'line',
@@ -494,7 +485,7 @@ function renderAnalytics() {
             responsive: true,
             maintainAspectRatio: false,
             scales: { y: { min: 0, max: 100 } },
-            animation: false // Disable animation on load for snap-in feel
+            animation: false // No animation on tab switch = faster feel
         }
     });
 
@@ -514,8 +505,7 @@ function renderAnalytics() {
         }
     });
     
-    // 6. Draw Prediction Line
-    updatePredictionGraph(); 
+    updatePrediction(); 
 }
 
 function initPredictionLogic() {
@@ -527,14 +517,14 @@ function initPredictionLogic() {
     attendBtn.onclick = null; bunkBtn.onclick = null; slider.oninput = null;
 
     attendBtn.onclick = () => {
-        predMode = 'attend';
+        predMode = 'attend'; // SAVE STATE
         attendBtn.classList.add("active");
         bunkBtn.classList.remove("active");
         updatePredictionText();
         updatePredictionGraph();
     };
     bunkBtn.onclick = () => {
-        predMode = 'bunk';
+        predMode = 'bunk'; // SAVE STATE
         bunkBtn.classList.add("active");
         attendBtn.classList.remove("active");
         updatePredictionText();
@@ -542,7 +532,7 @@ function initPredictionLogic() {
     };
     
     slider.oninput = (e) => {
-        predSliderValue = e.target.value;
+        predSliderValue = e.target.value; // SAVE STATE
         document.getElementById("slider-val-display").innerText = e.target.value;
         updatePredictionText();
         updatePredictionGraph();
@@ -556,7 +546,6 @@ function updatePredictionText() {
     let simTotal = lastTotalClasses;
     let simPresent = lastPresentClasses;
     
-    // Calc simulation just for text
     for(let i=1; i<=sliderVal; i++) {
         simTotal++;
         if(isAttend) simPresent++;
@@ -567,9 +556,10 @@ function updatePredictionText() {
     let diff = finalPct - currentPct;
     let diffStr = diff >= 0 ? `+${diff.toFixed(2)}%` : `${diff.toFixed(2)}%`;
     let color = diff >= 0 ? "var(--success)" : "var(--danger)";
+    let actionWord = isAttend ? "attend" : "bunk";
     
     document.getElementById("prediction-text").innerHTML = `
-        If you <b>${predMode}</b> next <b>${sliderVal}</b> classes:<br>
+        If you <b>${actionWord}</b> next <b>${sliderVal}</b> classes:<br>
         Result: <span class="pred-highlight">${finalPct.toFixed(2)}%</span>
         (<span style="color:${color}">${diffStr}</span>)
     `;
@@ -587,7 +577,6 @@ function updatePredictionGraph() {
     let futureLabels = [];
     let plotPoints = [];
 
-    // Connector Point
     let connectPoint = 100; 
     if(historyData.length > 0) connectPoint = historyData[historyData.length - 1];
     plotPoints.push(connectPoint); 
@@ -606,7 +595,7 @@ function updatePredictionGraph() {
     trendChart.data.labels = [...historyLabels, ...futureLabels];
     trendChart.data.datasets[1].data = [...padding, ...plotPoints];
     trendChart.data.datasets[2].data = Array(trendChart.data.labels.length).fill(sessionData.target);
-    trendChart.update('none'); // High perf update
+    trendChart.update('none'); 
 }
 
 // --- STANDARD FUNCTIONS ---
