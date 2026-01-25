@@ -109,7 +109,9 @@
                 <div class="legend-item"><span class="square blue"></span> Holiday</div>
                 <div class="legend-item"><span class="icon-legend">📝</span> Note</div>
             </div>
-            <div class="legend-instruction">(Long press any date to add a note)</div>
+            <div class="legend-instruction">
+                (Long press any date to add a note)
+            </div>
 
             <div class="calendar-wrapper">
                 <div class="calendar-nav">
@@ -125,36 +127,13 @@
         </div>
 
         <div id="view-insights" class="hidden">
-            <div class="prediction-container">
-                <div class="prediction-header">
-                    <h3>🔮 Predictor</h3>
-                    <div class="toggle-switch">
-                        <div id="pred-attend" class="toggle-opt active attend">Attend</div>
-                        <div id="pred-bunk" class="toggle-opt">Bunk</div>
-                    </div>
-                </div>
-                
-                <p style="font-size:0.85em; color:var(--text-sub); margin-bottom:10px;">
-                    Next <span id="slider-val-display" style="font-weight:bold;">1</span> classes:
-                </p>
-                
-                <div class="slider-container">
-                    <input type="range" id="pred-slider" min="1" max="20" value="1">
-                </div>
-
-                <div class="prediction-result" id="prediction-text">
-                    Move slider to simulate.
-                </div>
-            </div>
-
-            <div id="trendWrapper" class="chart-container">
+            <div class="chart-container">
                 <h3>📈 Attendance Trend</h3>
                 <canvas id="trendChart"></canvas>
             </div>
-            
-            <div id="distWrapper" class="chart-container">
+            <div class="chart-container">
                 <h3>🍰 Distribution</h3>
-                <canvas id="distributionChart"></canvas>
+                <canvas id="distributionChart" style="max-height: 200px;"></canvas>
             </div>
         </div>
 
@@ -182,15 +161,19 @@
             <h3>New Session</h3>
             <label>Name:</label>
             <input type="text" id="new-session-name" placeholder="Subject Name">
+            
             <label>Start Date:</label>
             <input type="date" id="new-session-date"> 
+            
             <label>Target %:</label>
             <input type="number" id="new-session-target" placeholder="75" value="75">
+            
             <label>Position in List:</label>
             <select id="new-session-position" class="full-select">
                 <option value="top" selected>Add to Top (Newest)</option>
                 <option value="bottom">Add to Bottom</option>
             </select>
+
             <div class="modal-actions">
                 <button id="cancel-create" class="btn-text">Cancel</button>
                 <button id="confirm-create" class="btn-primary">Create</button>
@@ -273,6 +256,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=FINAL_FINAL"></script>
+    <script type="module" src="app.js?v=FINAL_VERSION"></script>
 </body>
 </html>
