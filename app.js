@@ -31,7 +31,7 @@ let trendChart = null;
 let distChart = null; 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
-// Global storage for Chart Data (Crucial for Prediction)
+// Global storage for Chart Data
 let historyLabels = [];
 let historyData = [];
 let lastTotalClasses = 0;
@@ -68,8 +68,6 @@ themeBtns.forEach(btn => {
         document.body.setAttribute("data-theme", currentTheme);
         localStorage.setItem("theme", currentTheme);
         updateThemeIcon(currentTheme);
-        
-        // Re-render charts to update colors
         if(trendChart) renderAnalytics();
     };
 });
@@ -255,7 +253,6 @@ async function loadSessions() {
         div.className = "session-card";
         const statusClass = session.status === 'Ongoing' ? 'ongoing' : 'ended';
         
-        // RINGS
         let ringColor = "var(--success)";
         if(session.percent < session.target) ringColor = "var(--danger)";
         else if(session.percent < session.target + 10) ringColor = "#F1C40F";
@@ -356,10 +353,8 @@ async function openSession(sessId, data) {
     renderCalendar();
     calculateAttendance(); 
     
-    // Reset Predictor UI
-    document.getElementById("pred-slider").value = 1;
-    document.getElementById("slider-val-display").innerText = "1";
-    document.getElementById("prediction-text").innerText = "Move slider to simulate.";
+    // Reset UI Logic
+    resetPredictionUI();
 
     showScreen('detail');
 }
@@ -369,6 +364,7 @@ const tabIns = document.getElementById("tab-insights");
 tabCal.onclick = () => switchTab('calendar');
 tabIns.onclick = () => switchTab('insights');
 
+// --- FIXED SWITCH TAB LOGIC ---
 function switchTab(tabName) {
     if(tabName === 'calendar') {
         document.getElementById("view-calendar").classList.remove("hidden");
@@ -380,17 +376,29 @@ function switchTab(tabName) {
         document.getElementById("view-insights").classList.remove("hidden");
         tabCal.classList.remove("active");
         tabIns.classList.add("active");
-        renderAnalytics(); 
+        
+        // FIX: Reset Slider and toggle every time we enter
+        resetPredictionUI();
         initPredictionLogic(); 
+
+        // FIX: Delay rendering slightly to ensure DOM is visible (Fixes missing graph)
+        setTimeout(() => renderAnalytics(), 50);
     }
+}
+
+function resetPredictionUI() {
+    document.getElementById("pred-slider").value = 1;
+    document.getElementById("slider-val-display").innerText = "1";
+    document.getElementById("pred-attend").classList.add("active");
+    document.getElementById("pred-bunk").classList.remove("active");
+    document.getElementById("prediction-text").innerText = "Move slider to simulate.";
 }
 
 // --- ANALYTICS & PREDICTION LOGIC ---
 function renderAnalytics() {
-    if(trendChart) trendChart.destroy();
-    if(distChart) distChart.destroy();
+    if(trendChart) { trendChart.destroy(); trendChart = null; }
+    if(distChart) { distChart.destroy(); distChart = null; }
 
-    // Reset Globals
     historyLabels = [];
     historyData = [];
     lastTotalClasses = 0;
@@ -412,7 +420,6 @@ function renderAnalytics() {
             else absent++;
             
             let pct = (lastPresentClasses / lastTotalClasses) * 100;
-            // Capture history
             historyLabels.push(dStr.substring(5)); 
             historyData.push(pct.toFixed(1));
         } else {
@@ -420,8 +427,6 @@ function renderAnalytics() {
         }
         loopDate.setDate(loopDate.getDate() + 1);
     }
-
-    updatePrediction(); 
 
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     trendChart = new Chart(ctxTrend, {
@@ -439,7 +444,7 @@ function renderAnalytics() {
                 },
                 {
                     label: 'Prediction',
-                    data: [], // Starts empty
+                    data: [], 
                     borderColor: '#00B894',
                     borderDash: [5, 5],
                     pointBackgroundColor: '#fff',
@@ -473,6 +478,9 @@ function renderAnalytics() {
             }]
         }
     });
+
+    // FIX: Update Prediction line IMMEDIATELY after chart creation
+    updatePrediction(); 
 }
 
 function initPredictionLogic() {
@@ -480,11 +488,6 @@ function initPredictionLogic() {
     const attendBtn = document.getElementById("pred-attend");
     const bunkBtn = document.getElementById("pred-bunk");
     
-    // Clean old listeners to prevent stacking
-    attendBtn.onclick = null;
-    bunkBtn.onclick = null;
-    slider.oninput = null;
-
     attendBtn.onclick = () => {
         attendBtn.classList.add("active");
         bunkBtn.classList.remove("active");
@@ -503,31 +506,25 @@ function initPredictionLogic() {
 }
 
 function updatePrediction() {
-    // Safety check: Don't run if chart isn't ready
-    if(!trendChart) return;
+    if(!trendChart) return; 
 
     const sliderVal = Number(document.getElementById("pred-slider").value);
     const isAttend = document.getElementById("pred-attend").classList.contains("active");
     
-    // --- 1. CALCULATE FUTURE VALUES ---
     let simTotal = lastTotalClasses;
     let simPresent = lastPresentClasses;
     
     let futureLabels = [];
     let plotPoints = [];
 
-    // FIX: Handle Zero History Case
-    let connectPoint = 100; // Default start if no history
-    if(historyData.length > 0) {
-        connectPoint = historyData[historyData.length - 1];
-    }
+    // Handle case with 0 history
+    let connectPoint = 100; 
+    if(historyData.length > 0) connectPoint = historyData[historyData.length - 1];
+    
     plotPoints.push(connectPoint); 
 
-    // Create Padding (So prediction line starts after history)
     let padding = [];
-    if(historyData.length > 0) {
-        padding = Array(historyData.length - 1).fill(null);
-    }
+    if(historyData.length > 0) padding = Array(historyData.length - 1).fill(null);
     
     for(let i=1; i<=sliderVal; i++) {
         simTotal++;
@@ -538,7 +535,6 @@ function updatePrediction() {
         futureLabels.push(`+${i}`);
     }
 
-    // --- 2. UPDATE TEXT ---
     let currentPct = lastTotalClasses === 0 ? 100 : (lastPresentClasses / lastTotalClasses) * 100;
     let finalPct = (simPresent / simTotal) * 100;
     let diff = finalPct - currentPct;
@@ -552,17 +548,9 @@ function updatePrediction() {
         (<span style="color:${color}">${diffStr}</span>)
     `;
 
-    // --- 3. UPDATE CHART (LIVE) ---
-    // Extend Labels
     trendChart.data.labels = [...historyLabels, ...futureLabels];
-    
-    // Update Prediction Dataset
     trendChart.data.datasets[1].data = [...padding, ...plotPoints];
-    
-    // Update Target Line length
     trendChart.data.datasets[2].data = Array(trendChart.data.labels.length).fill(sessionData.target);
-    
-    // Use 'none' mode for high-performance updates (no lag while dragging)
     trendChart.update('none');
 }
 
