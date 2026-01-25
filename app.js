@@ -31,7 +31,7 @@ let trendChart = null;
 let distChart = null; 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
-// PERSISTENCE GLOBALS
+// TEMPORARY GLOBALS (Only valid while in Insights tab)
 let predSliderValue = 1;
 let predMode = 'attend'; 
 
@@ -354,13 +354,7 @@ async function openSession(sessId, data) {
 
     viewDate = new Date(); 
     
-    // Default open to Calendar
     switchTab('calendar');
-    
-    // IMPORTANT: Reset Predictor Defaults when OPENING a session
-    predSliderValue = 1;
-    predMode = 'attend';
-    
     renderCalendar();
     calculateAttendance(); 
     showScreen('detail');
@@ -371,23 +365,29 @@ const tabIns = document.getElementById("tab-insights");
 tabCal.onclick = () => switchTab('calendar');
 tabIns.onclick = () => switchTab('insights');
 
+// --- THE FIX IS HERE ---
 function switchTab(tabName) {
     if(tabName === 'calendar') {
         document.getElementById("view-calendar").classList.remove("hidden");
         document.getElementById("view-insights").classList.add("hidden");
         tabCal.classList.add("active");
         tabIns.classList.remove("active");
-        
-        // --- FIX: RESET PREDICTOR WHEN LEAVING INSIGHTS ---
-        predSliderValue = 1;
-        predMode = 'attend';
     } else {
         document.getElementById("view-calendar").classList.add("hidden");
         document.getElementById("view-insights").classList.remove("hidden");
         tabCal.classList.remove("active");
         tabIns.classList.add("active");
         
-        // NUCLEAR FIX: DELAY RENDERING TO ALLOW DOM REFLOW
+        // NUCLEAR RESET: Force Predictor to Defaults Every Time
+        predSliderValue = 1;
+        predMode = 'attend';
+        document.getElementById("pred-slider").value = 1;
+        document.getElementById("slider-val-display").innerText = "1";
+        document.getElementById("pred-attend").classList.add("active");
+        document.getElementById("pred-bunk").classList.remove("active");
+        document.getElementById("prediction-text").innerText = "Move slider to simulate.";
+
+        // RENDER WITH DELAY TO FIX GRAPH
         setTimeout(() => {
             initPredictionLogic(); 
             renderAnalytics(); 
@@ -433,20 +433,6 @@ function renderAnalytics() {
             holiday++;
         }
         loopDate.setDate(loopDate.getDate() + 1);
-    }
-
-    // Restore UI from Globals
-    document.getElementById("pred-slider").value = predSliderValue;
-    document.getElementById("slider-val-display").innerText = predSliderValue;
-    const attendBtn = document.getElementById("pred-attend");
-    const bunkBtn = document.getElementById("pred-bunk");
-    
-    if(predMode === 'attend') {
-        attendBtn.classList.add("active");
-        bunkBtn.classList.remove("active");
-    } else {
-        bunkBtn.classList.add("active");
-        attendBtn.classList.remove("active");
     }
 
     updatePredictionText(); 
@@ -516,7 +502,6 @@ function initPredictionLogic() {
     const attendBtn = document.getElementById("pred-attend");
     const bunkBtn = document.getElementById("pred-bunk");
     
-    // Remove old listeners
     attendBtn.onclick = null; bunkBtn.onclick = null; slider.oninput = null;
 
     attendBtn.onclick = () => {
