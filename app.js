@@ -31,9 +31,9 @@ let trendChart = null;
 let distChart = null; 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
-// PERSISTENCE GLOBALS (Keep these alive between tabs)
+// PERSISTENCE GLOBALS
 let predSliderValue = 1;
-let predMode = 'attend'; // or 'bunk'
+let predMode = 'attend';
 
 // Global Stats
 let historyLabels = [];
@@ -57,6 +57,7 @@ function showToast(msg, type="error") {
     setTimeout(() => toast.remove(), 3000);
 }
 
+// --- THEME CYCLER ---
 const themeBtns = document.querySelectorAll(".theme-toggle");
 const themes = ["light", "dark", "midnight", "sepia"];
 let currentTheme = localStorage.getItem("theme") || "light";
@@ -378,23 +379,33 @@ function switchTab(tabName) {
         tabCal.classList.remove("active");
         tabIns.classList.add("active");
         
-        // Re-initialize logic
+        // RE-RENDER WITH DELAY (Fixes missing graph)
+        resetPredictionUI();
         initPredictionLogic(); 
         setTimeout(() => renderAnalytics(), 50);
     }
 }
 
-// --- RENDER ANALYTICS (FIXED RESET) ---
+function resetPredictionUI() {
+    document.getElementById("pred-slider").value = 1;
+    document.getElementById("slider-val-display").innerText = "1";
+    document.getElementById("pred-attend").classList.add("active");
+    document.getElementById("pred-bunk").classList.remove("active");
+    document.getElementById("prediction-text").innerText = "Move slider to simulate.";
+}
+
+// --- RENDER ANALYTICS (FIXED HEIGHT CONSTRAINT) ---
 function renderAnalytics() {
     if(trendChart) { trendChart.destroy(); trendChart = null; }
     if(distChart) { distChart.destroy(); distChart = null; }
 
-    // NUCLEAR FIX: Reset Container DOM to ensure clean canvas
+    // --- NUCLEAR FIX: Force fixed height to prevent stretching ---
     const trendWrap = document.getElementById("trendWrapper");
     const distWrap = document.getElementById("distWrapper");
     
-    trendWrap.innerHTML = '<h3>📈 Attendance Trend</h3><canvas id="trendChart"></canvas>';
-    distWrap.innerHTML = '<h3>🍰 Distribution</h3><canvas id="distributionChart" style="max-height: 200px;"></canvas>';
+    // We add a wrapper div with explicit height
+    trendWrap.innerHTML = '<h3>📈 Attendance Trend</h3><div style="position:relative; height:250px; width:100%"><canvas id="trendChart"></canvas></div>';
+    distWrap.innerHTML = '<h3>🍰 Distribution</h3><div style="position:relative; height:200px; width:100%"><canvas id="distributionChart"></canvas></div>';
 
     // --- RE-CALCULATE STATS ---
     historyLabels = [];
@@ -440,7 +451,7 @@ function renderAnalytics() {
         attendBtn.classList.remove("active");
     }
 
-    updatePrediction(); // Init text
+    updatePrediction(); 
 
     // --- DRAW CHARTS ---
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
@@ -478,7 +489,7 @@ function renderAnalytics() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: false, // Important!
             scales: { y: { min: 0, max: 100 } }
         }
     });
@@ -492,10 +503,13 @@ function renderAnalytics() {
                 data: [lastPresentClasses, absent, holiday],
                 backgroundColor: ['#00B894', '#FF4757', '#0984e3']
             }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false // Important!
         }
     });
     
-    // Draw prediction line immediately
     updatePrediction(); 
 }
 
