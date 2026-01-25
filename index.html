@@ -147,11 +147,12 @@
                 </div>
             </div>
 
-            <div class="chart-container">
+            <div id="trendWrapper" class="chart-container">
                 <h3>📈 Attendance Trend</h3>
                 <canvas id="trendChart"></canvas>
             </div>
-            <div class="chart-container">
+            
+            <div id="distWrapper" class="chart-container">
                 <h3>🍰 Distribution</h3>
                 <canvas id="distributionChart" style="max-height: 200px;"></canvas>
             </div>
@@ -181,19 +182,15 @@
             <h3>New Session</h3>
             <label>Name:</label>
             <input type="text" id="new-session-name" placeholder="Subject Name">
-            
             <label>Start Date:</label>
             <input type="date" id="new-session-date"> 
-            
             <label>Target %:</label>
             <input type="number" id="new-session-target" placeholder="75" value="75">
-            
             <label>Position in List:</label>
             <select id="new-session-position" class="full-select">
                 <option value="top" selected>Add to Top (Newest)</option>
                 <option value="bottom">Add to Bottom</option>
             </select>
-
             <div class="modal-actions">
                 <button id="cancel-create" class="btn-text">Cancel</button>
                 <button id="confirm-create" class="btn-primary">Create</button>
@@ -276,6 +273,6 @@
         </div>
     </div>
 
-    <script type="module" src="app.js?v=FINAL_PRO"></script>
+    <script type="module" src="app.js?v=FINAL_FIX"></script>
 </body>
 </html>
