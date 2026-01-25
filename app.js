@@ -15,6 +15,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// Enable Offline Persistence
 enableIndexedDbPersistence(db).catch((err) => { console.log("Persistence error:", err.code); });
 const provider = new GoogleAuthProvider();
 
@@ -31,11 +32,11 @@ let trendChart = null;
 let distChart = null; 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
-// PERSISTENCE GLOBALS
+// PERSISTENCE GLOBALS (These keep your slider settings alive)
 let predSliderValue = 1;
-let predMode = 'attend';
+let predMode = 'attend'; // or 'bunk'
 
-// Global Stats
+// Chart Data Storage
 let historyLabels = [];
 let historyData = [];
 let lastTotalClasses = 0;
@@ -57,7 +58,7 @@ function showToast(msg, type="error") {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// --- THEME CYCLER ---
+// --- THEME LOGIC ---
 const themeBtns = document.querySelectorAll(".theme-toggle");
 const themes = ["light", "dark", "midnight", "sepia"];
 let currentTheme = localStorage.getItem("theme") || "light";
@@ -72,7 +73,10 @@ themeBtns.forEach(btn => {
         document.body.setAttribute("data-theme", currentTheme);
         localStorage.setItem("theme", currentTheme);
         updateThemeIcon(currentTheme);
-        if(trendChart) renderAnalytics();
+        // Redraw chart if visible to update colors
+        if(!document.getElementById("view-insights").classList.contains("hidden")) {
+            renderAnalytics();
+        }
     };
 });
 
@@ -81,7 +85,7 @@ function updateThemeIcon(theme) {
     themeBtns.forEach(btn => btn.innerText = icons[theme]);
 }
 
-// --- AUTH ---
+// --- AUTHENTICATION ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -352,11 +356,15 @@ async function openSession(sessId, data) {
 
     viewDate = new Date(); 
     
-    // Reset to default on open, but PERSIST within session
-    predSliderValue = 1;
-    predMode = 'attend';
-    
+    // Default open to Calendar
     switchTab('calendar');
+    
+    // IMPORTANT: Reset prediction data ONLY on new session open
+    // If returning from same session tab, we use global vars
+    // But since we open a fresh session, logical reset is fine here?
+    // User wants PERSISTENCE when switching tabs.
+    // So we DON'T reset here. We rely on global variables.
+    
     renderCalendar();
     calculateAttendance(); 
     showScreen('detail');
@@ -367,6 +375,7 @@ const tabIns = document.getElementById("tab-insights");
 tabCal.onclick = () => switchTab('calendar');
 tabIns.onclick = () => switchTab('insights');
 
+// --- THE FIX IS HERE: TIMING LOGIC ---
 function switchTab(tabName) {
     if(tabName === 'calendar') {
         document.getElementById("view-calendar").classList.remove("hidden");
@@ -379,35 +388,29 @@ function switchTab(tabName) {
         tabCal.classList.remove("active");
         tabIns.classList.add("active");
         
-        // RE-RENDER WITH DELAY (Fixes missing graph)
-        resetPredictionUI();
-        initPredictionLogic(); 
-        setTimeout(() => renderAnalytics(), 50);
+        // NUCLEAR FIX: Use requestAnimationFrame to ensure browser paints first
+        // This makes sure the <div> is visible and has size BEFORE chart draws
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                initPredictionLogic(); 
+                renderAnalytics(); 
+            });
+        });
     }
 }
 
-function resetPredictionUI() {
-    document.getElementById("pred-slider").value = 1;
-    document.getElementById("slider-val-display").innerText = "1";
-    document.getElementById("pred-attend").classList.add("active");
-    document.getElementById("pred-bunk").classList.remove("active");
-    document.getElementById("prediction-text").innerText = "Move slider to simulate.";
-}
-
-// --- RENDER ANALYTICS (FIXED HEIGHT CONSTRAINT) ---
+// --- RENDER ANALYTICS ---
 function renderAnalytics() {
+    // 1. Destroy old instances
     if(trendChart) { trendChart.destroy(); trendChart = null; }
     if(distChart) { distChart.destroy(); distChart = null; }
 
-    // --- NUCLEAR FIX: Force fixed height to prevent stretching ---
-    const trendWrap = document.getElementById("trendWrapper");
-    const distWrap = document.getElementById("distWrapper");
-    
-    // We add a wrapper div with explicit height
-    trendWrap.innerHTML = '<h3>📈 Attendance Trend</h3><div style="position:relative; height:250px; width:100%"><canvas id="trendChart"></canvas></div>';
-    distWrap.innerHTML = '<h3>🍰 Distribution</h3><div style="position:relative; height:200px; width:100%"><canvas id="distributionChart"></canvas></div>';
+    // 2. Reset DOM Containers to force clean slate
+    // Added fixed height style directly here to prevent layout shift
+    document.getElementById("trendWrapper").innerHTML = '<h3>📈 Attendance Trend</h3><div style="position:relative; height:250px; width:100%"><canvas id="trendChart"></canvas></div>';
+    document.getElementById("distWrapper").innerHTML = '<h3>🍰 Distribution</h3><div style="position:relative; height:200px; width:100%"><canvas id="distributionChart"></canvas></div>';
 
-    // --- RE-CALCULATE STATS ---
+    // 3. Recalculate Logic
     historyLabels = [];
     historyData = [];
     lastTotalClasses = 0;
@@ -437,7 +440,7 @@ function renderAnalytics() {
         loopDate.setDate(loopDate.getDate() + 1);
     }
 
-    // --- RESTORE UI STATE ---
+    // 4. Restore Prediction UI from Globals
     document.getElementById("pred-slider").value = predSliderValue;
     document.getElementById("slider-val-display").innerText = predSliderValue;
     const attendBtn = document.getElementById("pred-attend");
@@ -451,9 +454,9 @@ function renderAnalytics() {
         attendBtn.classList.remove("active");
     }
 
-    updatePrediction(); 
+    updatePredictionText(); // Update just text first
 
-    // --- DRAW CHARTS ---
+    // 5. Draw Charts
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     trendChart = new Chart(ctxTrend, {
         type: 'line',
@@ -489,8 +492,9 @@ function renderAnalytics() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false, // Important!
-            scales: { y: { min: 0, max: 100 } }
+            maintainAspectRatio: false,
+            scales: { y: { min: 0, max: 100 } },
+            animation: false // Disable animation on load for snap-in feel
         }
     });
 
@@ -506,11 +510,12 @@ function renderAnalytics() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false // Important!
+            maintainAspectRatio: false
         }
     });
     
-    updatePrediction(); 
+    // 6. Draw Prediction Line
+    updatePredictionGraph(); 
 }
 
 function initPredictionLogic() {
@@ -518,53 +523,45 @@ function initPredictionLogic() {
     const attendBtn = document.getElementById("pred-attend");
     const bunkBtn = document.getElementById("pred-bunk");
     
+    // Clear old listeners
+    attendBtn.onclick = null; bunkBtn.onclick = null; slider.oninput = null;
+
     attendBtn.onclick = () => {
-        predMode = 'attend'; // Save State
+        predMode = 'attend';
         attendBtn.classList.add("active");
         bunkBtn.classList.remove("active");
-        updatePrediction();
+        updatePredictionText();
+        updatePredictionGraph();
     };
     bunkBtn.onclick = () => {
-        predMode = 'bunk'; // Save State
+        predMode = 'bunk';
         bunkBtn.classList.add("active");
         attendBtn.classList.remove("active");
-        updatePrediction();
+        updatePredictionText();
+        updatePredictionGraph();
     };
     
     slider.oninput = (e) => {
-        predSliderValue = e.target.value; // Save State
+        predSliderValue = e.target.value;
         document.getElementById("slider-val-display").innerText = e.target.value;
-        updatePrediction();
+        updatePredictionText();
+        updatePredictionGraph();
     };
 }
 
-function updatePrediction() {
-    if(!trendChart) return; 
-
-    // --- 1. CALCULATE FUTURE VALUES ---
+function updatePredictionText() {
+    const sliderVal = Number(predSliderValue);
+    const isAttend = (predMode === 'attend');
+    
     let simTotal = lastTotalClasses;
     let simPresent = lastPresentClasses;
-    let futureLabels = [];
-    let plotPoints = [];
-
-    // Handle case with 0 history
-    let connectPoint = 100; 
-    if(historyData.length > 0) connectPoint = historyData[historyData.length - 1];
-    plotPoints.push(connectPoint); 
-
-    let padding = [];
-    if(historyData.length > 0) padding = Array(historyData.length - 1).fill(null);
     
-    for(let i=1; i<=predSliderValue; i++) {
+    // Calc simulation just for text
+    for(let i=1; i<=sliderVal; i++) {
         simTotal++;
-        if(predMode === 'attend') simPresent++;
-        
-        let newPct = (simPresent / simTotal) * 100;
-        plotPoints.push(newPct.toFixed(1));
-        futureLabels.push(`+${i}`);
+        if(isAttend) simPresent++;
     }
 
-    // --- 2. UPDATE TEXT ---
     let currentPct = lastTotalClasses === 0 ? 100 : (lastPresentClasses / lastTotalClasses) * 100;
     let finalPct = (simPresent / simTotal) * 100;
     let diff = finalPct - currentPct;
@@ -572,16 +569,44 @@ function updatePrediction() {
     let color = diff >= 0 ? "var(--success)" : "var(--danger)";
     
     document.getElementById("prediction-text").innerHTML = `
-        If you <b>${predMode}</b> next <b>${predSliderValue}</b> classes:<br>
+        If you <b>${predMode}</b> next <b>${sliderVal}</b> classes:<br>
         Result: <span class="pred-highlight">${finalPct.toFixed(2)}%</span>
         (<span style="color:${color}">${diffStr}</span>)
     `;
+}
 
-    // --- 3. UPDATE CHART ---
+function updatePredictionGraph() {
+    if(!trendChart) return; 
+
+    const sliderVal = Number(predSliderValue);
+    const isAttend = (predMode === 'attend');
+    
+    let simTotal = lastTotalClasses;
+    let simPresent = lastPresentClasses;
+    
+    let futureLabels = [];
+    let plotPoints = [];
+
+    // Connector Point
+    let connectPoint = 100; 
+    if(historyData.length > 0) connectPoint = historyData[historyData.length - 1];
+    plotPoints.push(connectPoint); 
+
+    let padding = [];
+    if(historyData.length > 0) padding = Array(historyData.length - 1).fill(null);
+    
+    for(let i=1; i<=sliderVal; i++) {
+        simTotal++;
+        if(isAttend) simPresent++;
+        let newPct = (simPresent / simTotal) * 100;
+        plotPoints.push(newPct.toFixed(1));
+        futureLabels.push(`+${i}`);
+    }
+
     trendChart.data.labels = [...historyLabels, ...futureLabels];
     trendChart.data.datasets[1].data = [...padding, ...plotPoints];
     trendChart.data.datasets[2].data = Array(trendChart.data.labels.length).fill(sessionData.target);
-    trendChart.update('none');
+    trendChart.update('none'); // High perf update
 }
 
 // --- STANDARD FUNCTIONS ---
