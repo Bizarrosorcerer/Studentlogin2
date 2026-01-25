@@ -31,7 +31,11 @@ let trendChart = null;
 let distChart = null; 
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
-// Global storage for Chart Data
+// PERSISTENCE GLOBALS (Keep these alive between tabs)
+let predSliderValue = 1;
+let predMode = 'attend'; // or 'bunk'
+
+// Global Stats
 let historyLabels = [];
 let historyData = [];
 let lastTotalClasses = 0;
@@ -53,7 +57,6 @@ function showToast(msg, type="error") {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// --- THEME CYCLER ---
 const themeBtns = document.querySelectorAll(".theme-toggle");
 const themes = ["light", "dark", "midnight", "sepia"];
 let currentTheme = localStorage.getItem("theme") || "light";
@@ -293,7 +296,6 @@ window.confirmDeleteSession = (id, name) => {
 };
 document.getElementById("cancel-delete").onclick = () => document.getElementById("delete-confirm-modal").classList.add("hidden");
 
-// --- CREATE SESSION ---
 document.getElementById("add-session-fab").onclick = () => {
     document.getElementById("new-session-name").value = "";
     document.getElementById("new-session-date").value = "";
@@ -331,7 +333,6 @@ document.getElementById("confirm-create").onclick = async () => {
     loadSessions();
 };
 
-// --- SESSION DETAIL ---
 async function openSession(sessId, data) {
     currentSessionId = sessId;
     sessionData = data;
@@ -349,13 +350,14 @@ async function openSession(sessId, data) {
     snap.forEach(d => { sessionExceptions[d.id] = d.data(); });
 
     viewDate = new Date(); 
+    
+    // Reset to default on open, but PERSIST within session
+    predSliderValue = 1;
+    predMode = 'attend';
+    
     switchTab('calendar');
     renderCalendar();
     calculateAttendance(); 
-    
-    // Reset UI Logic
-    resetPredictionUI();
-
     showScreen('detail');
 }
 
@@ -364,7 +366,6 @@ const tabIns = document.getElementById("tab-insights");
 tabCal.onclick = () => switchTab('calendar');
 tabIns.onclick = () => switchTab('insights');
 
-// --- FIXED SWITCH TAB LOGIC ---
 function switchTab(tabName) {
     if(tabName === 'calendar') {
         document.getElementById("view-calendar").classList.remove("hidden");
@@ -377,28 +378,25 @@ function switchTab(tabName) {
         tabCal.classList.remove("active");
         tabIns.classList.add("active");
         
-        // FIX: Reset Slider and toggle every time we enter
-        resetPredictionUI();
+        // Re-initialize logic
         initPredictionLogic(); 
-
-        // FIX: Delay rendering slightly to ensure DOM is visible (Fixes missing graph)
         setTimeout(() => renderAnalytics(), 50);
     }
 }
 
-function resetPredictionUI() {
-    document.getElementById("pred-slider").value = 1;
-    document.getElementById("slider-val-display").innerText = "1";
-    document.getElementById("pred-attend").classList.add("active");
-    document.getElementById("pred-bunk").classList.remove("active");
-    document.getElementById("prediction-text").innerText = "Move slider to simulate.";
-}
-
-// --- ANALYTICS & PREDICTION LOGIC ---
+// --- RENDER ANALYTICS (FIXED RESET) ---
 function renderAnalytics() {
     if(trendChart) { trendChart.destroy(); trendChart = null; }
     if(distChart) { distChart.destroy(); distChart = null; }
 
+    // NUCLEAR FIX: Reset Container DOM to ensure clean canvas
+    const trendWrap = document.getElementById("trendWrapper");
+    const distWrap = document.getElementById("distWrapper");
+    
+    trendWrap.innerHTML = '<h3>📈 Attendance Trend</h3><canvas id="trendChart"></canvas>';
+    distWrap.innerHTML = '<h3>🍰 Distribution</h3><canvas id="distributionChart" style="max-height: 200px;"></canvas>';
+
+    // --- RE-CALCULATE STATS ---
     historyLabels = [];
     historyData = [];
     lastTotalClasses = 0;
@@ -428,6 +426,23 @@ function renderAnalytics() {
         loopDate.setDate(loopDate.getDate() + 1);
     }
 
+    // --- RESTORE UI STATE ---
+    document.getElementById("pred-slider").value = predSliderValue;
+    document.getElementById("slider-val-display").innerText = predSliderValue;
+    const attendBtn = document.getElementById("pred-attend");
+    const bunkBtn = document.getElementById("pred-bunk");
+    
+    if(predMode === 'attend') {
+        attendBtn.classList.add("active");
+        bunkBtn.classList.remove("active");
+    } else {
+        bunkBtn.classList.add("active");
+        attendBtn.classList.remove("active");
+    }
+
+    updatePrediction(); // Init text
+
+    // --- DRAW CHARTS ---
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     trendChart = new Chart(ctxTrend, {
         type: 'line',
@@ -463,6 +478,7 @@ function renderAnalytics() {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: { y: { min: 0, max: 100 } }
         }
     });
@@ -478,8 +494,8 @@ function renderAnalytics() {
             }]
         }
     });
-
-    // FIX: Update Prediction line IMMEDIATELY after chart creation
+    
+    // Draw prediction line immediately
     updatePrediction(); 
 }
 
@@ -489,17 +505,20 @@ function initPredictionLogic() {
     const bunkBtn = document.getElementById("pred-bunk");
     
     attendBtn.onclick = () => {
+        predMode = 'attend'; // Save State
         attendBtn.classList.add("active");
         bunkBtn.classList.remove("active");
         updatePrediction();
     };
     bunkBtn.onclick = () => {
+        predMode = 'bunk'; // Save State
         bunkBtn.classList.add("active");
         attendBtn.classList.remove("active");
         updatePrediction();
     };
     
     slider.oninput = (e) => {
+        predSliderValue = e.target.value; // Save State
         document.getElementById("slider-val-display").innerText = e.target.value;
         updatePrediction();
     };
@@ -508,46 +527,43 @@ function initPredictionLogic() {
 function updatePrediction() {
     if(!trendChart) return; 
 
-    const sliderVal = Number(document.getElementById("pred-slider").value);
-    const isAttend = document.getElementById("pred-attend").classList.contains("active");
-    
+    // --- 1. CALCULATE FUTURE VALUES ---
     let simTotal = lastTotalClasses;
     let simPresent = lastPresentClasses;
-    
     let futureLabels = [];
     let plotPoints = [];
 
     // Handle case with 0 history
     let connectPoint = 100; 
     if(historyData.length > 0) connectPoint = historyData[historyData.length - 1];
-    
     plotPoints.push(connectPoint); 
 
     let padding = [];
     if(historyData.length > 0) padding = Array(historyData.length - 1).fill(null);
     
-    for(let i=1; i<=sliderVal; i++) {
+    for(let i=1; i<=predSliderValue; i++) {
         simTotal++;
-        if(isAttend) simPresent++;
+        if(predMode === 'attend') simPresent++;
         
         let newPct = (simPresent / simTotal) * 100;
         plotPoints.push(newPct.toFixed(1));
         futureLabels.push(`+${i}`);
     }
 
+    // --- 2. UPDATE TEXT ---
     let currentPct = lastTotalClasses === 0 ? 100 : (lastPresentClasses / lastTotalClasses) * 100;
     let finalPct = (simPresent / simTotal) * 100;
     let diff = finalPct - currentPct;
     let diffStr = diff >= 0 ? `+${diff.toFixed(2)}%` : `${diff.toFixed(2)}%`;
     let color = diff >= 0 ? "var(--success)" : "var(--danger)";
-    let actionWord = isAttend ? "attend" : "bunk";
     
     document.getElementById("prediction-text").innerHTML = `
-        If you <b>${actionWord}</b> next <b>${sliderVal}</b> classes:<br>
+        If you <b>${predMode}</b> next <b>${predSliderValue}</b> classes:<br>
         Result: <span class="pred-highlight">${finalPct.toFixed(2)}%</span>
         (<span style="color:${color}">${diffStr}</span>)
     `;
 
+    // --- 3. UPDATE CHART ---
     trendChart.data.labels = [...historyLabels, ...futureLabels];
     trendChart.data.datasets[1].data = [...padding, ...plotPoints];
     trendChart.data.datasets[2].data = Array(trendChart.data.labels.length).fill(sessionData.target);
