@@ -15,10 +15,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-enableIndexedDbPersistence(db).catch((err) => {
-    console.log("Persistence error:", err.code);
-});
-
+enableIndexedDbPersistence(db).catch((err) => { console.log("Persistence error:", err.code); });
 const provider = new GoogleAuthProvider();
 
 // --- VARIABLES ---
@@ -32,7 +29,6 @@ let isLongPress = false;
 let selectedDateForNote = null;
 let trendChart = null; 
 let distChart = null; 
-
 const fixedHolidays = ["-01-01", "-01-26", "-08-15", "-10-02", "-12-25"];
 
 const screens = {
@@ -51,38 +47,26 @@ function showToast(msg, type="error") {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// --- NEW: THEME CYCLER (Light -> Dark -> Midnight -> Sepia) ---
+// --- THEME CYCLER ---
 const themeBtns = document.querySelectorAll(".theme-toggle");
 const themes = ["light", "dark", "midnight", "sepia"];
-
-// 1. Load saved theme
 let currentTheme = localStorage.getItem("theme") || "light";
 document.body.setAttribute("data-theme", currentTheme);
 updateThemeIcon(currentTheme);
 
 themeBtns.forEach(btn => {
     btn.onclick = () => {
-        // 2. Find current index and get next one
         let index = themes.indexOf(currentTheme);
-        index = (index + 1) % themes.length; // Loops back to 0
-        
-        // 3. Apply new theme
+        index = (index + 1) % themes.length; 
         currentTheme = themes[index];
         document.body.setAttribute("data-theme", currentTheme);
         localStorage.setItem("theme", currentTheme);
-        
-        // 4. Update the Icon
         updateThemeIcon(currentTheme);
     };
 });
 
 function updateThemeIcon(theme) {
-    const icons = {
-        "light": "☀️",
-        "dark": "🌙",
-        "midnight": "🖤",
-        "sepia": "📖"
-    };
+    const icons = { "light": "☀️", "dark": "🌙", "midnight": "🖤", "sepia": "📖" };
     themeBtns.forEach(btn => btn.innerText = icons[theme]);
 }
 
@@ -91,7 +75,6 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         const userDoc = await getDoc(doc(db, "users", user.uid));
-        
         if (userDoc.exists() && userDoc.data().name) {
             loadProfile(userDoc.data());
             loadSessions();
@@ -122,8 +105,7 @@ if(loginBtn) {
         if(isSetupMode && !nameInput) return showToast("Please confirm your name", "error");
 
         signInWithPopup(auth, provider).then(async (result) => {
-            showScreen('splash'); // Immediate Splash
-
+            showScreen('splash'); 
             if(isSetupMode || nameInput) {
                 await setDoc(doc(db, "users", result.user.uid), {
                     name: nameInput || result.user.displayName,
@@ -131,11 +113,7 @@ if(loginBtn) {
                     photo: null 
                 }, { merge: true });
             }
-        }).catch(err => {
-            console.error(err);
-            showToast("Login failed. Try again.");
-            showScreen('login');
-        });
+        }).catch(err => { showToast("Login failed."); showScreen('login'); });
     });
 }
 
@@ -194,7 +172,6 @@ document.getElementById("btn-remove-photo").onclick = async () => {
     showToast("Photo Removed", "success");
 };
 document.getElementById("close-profile-options").onclick = () => document.getElementById("profile-options-modal").classList.add("hidden");
-
 document.getElementById("profile-upload").onchange = async (e) => {
     const file = e.target.files[0];
     if(!file) return;
@@ -210,7 +187,7 @@ document.getElementById("profile-upload").onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
-// --- SESSION LIST ---
+// --- SESSION LIST (DASHBOARD RINGS) ---
 async function loadSessions() {
     const container = document.getElementById("sessions-container");
     container.innerHTML = "<p>Loading...</p>";
@@ -219,12 +196,37 @@ async function loadSessions() {
     const snapshot = await getDocs(q);
     const sessionsList = [];
 
-    snapshot.forEach(docSnap => {
+    const allPromises = snapshot.docs.map(async (docSnap) => {
+        const data = docSnap.data();
+        const excSnap = await getDocs(collection(db, `users/${currentUser.uid}/sessions/${docSnap.id}/exceptions`));
+        let exceptions = {};
+        excSnap.forEach(d => exceptions[d.id] = d.data().status);
+        
+        let total = 0, present = 0;
+        let loopDate = new Date(data.startDate);
+        let today = new Date();
+        while(loopDate <= today) {
+            let dStr = loopDate.toISOString().split('T')[0];
+            let status = "Present"; 
+            if(exceptions[dStr]) status = exceptions[dStr];
+            else if(isDefaultHoliday(dStr)) status = "Holiday";
+
+            if(status !== "Holiday") {
+                total++;
+                if(status === "Present") present++;
+            }
+            loopDate.setDate(loopDate.getDate() + 1);
+        }
+        let percent = total === 0 ? 100 : Math.round((present / total) * 100);
+
         sessionsList.push({
             id: docSnap.id,
-            ...docSnap.data()
+            ...data,
+            percent: percent 
         });
     });
+
+    await Promise.all(allPromises);
 
     sessionsList.sort((a, b) => {
         const orderA = a.sortOrder !== undefined ? a.sortOrder : 0; 
@@ -243,15 +245,25 @@ async function loadSessions() {
         const div = document.createElement("div");
         div.className = "session-card";
         const statusClass = session.status === 'Ongoing' ? 'ongoing' : 'ended';
+        
+        // RINGS
         div.innerHTML = `
-            <div class="card-header">
-                <div class="card-title-row">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="card-title-row" style="flex:1;">
                     <h3>${session.name}</h3>
-                    <span class="status-badge ${statusClass}">${session.status}</span>
+                    <div style="display:flex; gap:8px;">
+                        <span class="status-badge ${statusClass}">${session.status}</span>
+                    </div>
+                    <p style="margin:5px 0 0; font-size:0.8em; color:var(--text-sub);">Started: ${session.startDate}</p>
                 </div>
-                <button class="delete-session-icon" onclick="event.stopPropagation(); confirmDeleteSession('${session.id}', '${session.name}')">🗑️</button>
+                
+                <div class="progress-ring-container">
+                    <div class="progress-ring" style="--p: ${session.percent}%;">
+                        <span class="progress-text">${session.percent}%</span>
+                    </div>
+                </div>
             </div>
-            <p>Started: ${session.startDate}</p>
+            <button class="delete-session-icon" style="position:absolute; top:10px; right:10px; opacity:0.3;" onclick="event.stopPropagation(); confirmDeleteSession('${session.id}', '${session.name}')">🗑️</button>
         `;
         div.onclick = () => openSession(session.id, session);
         container.appendChild(div);
@@ -271,7 +283,7 @@ window.confirmDeleteSession = (id, name) => {
 };
 document.getElementById("cancel-delete").onclick = () => document.getElementById("delete-confirm-modal").classList.add("hidden");
 
-// --- CREATE SESSION ---
+// --- CREATE SESSION (UNIQUE NAME + RESET) ---
 document.getElementById("add-session-fab").onclick = () => {
     document.getElementById("new-session-name").value = "";
     document.getElementById("new-session-date").value = "";
@@ -279,9 +291,7 @@ document.getElementById("add-session-fab").onclick = () => {
     document.getElementById("new-session-position").value = "top"; 
     document.getElementById("create-modal").classList.remove("hidden");
 };
-
 document.getElementById("cancel-create").onclick = () => document.getElementById("create-modal").classList.add("hidden");
-
 document.getElementById("confirm-create").onclick = async () => {
     const name = document.getElementById("new-session-name").value.trim();
     const date = document.getElementById("new-session-date").value;
@@ -291,11 +301,8 @@ document.getElementById("confirm-create").onclick = async () => {
     if(!name || !date) return showToast("Fill all fields");
     if(!target) target = 75; 
 
-    // DUPLICATE CHECK
-    const q = query(
-        collection(db, `users/${currentUser.uid}/sessions`), 
-        where("name", "==", name)
-    );
+    // UNIQUE CHECK
+    const q = query(collection(db, `users/${currentUser.uid}/sessions`), where("name", "==", name));
     const existingCheck = await getDocs(q);
     if (!existingCheck.empty) return showToast("Session name already exists!", "error");
 
@@ -315,7 +322,7 @@ document.getElementById("confirm-create").onclick = async () => {
     loadSessions();
 };
 
-// --- SESSION DETAIL ---
+// --- SESSION DETAIL & PREDICTOR ---
 async function openSession(sessId, data) {
     currentSessionId = sessId;
     sessionData = data;
@@ -336,6 +343,12 @@ async function openSession(sessId, data) {
     switchTab('calendar');
     renderCalendar();
     calculateAttendance(); 
+    
+    // Reset Predictor
+    document.getElementById("pred-slider").value = 1;
+    document.getElementById("slider-val-display").innerText = "1";
+    document.getElementById("prediction-text").innerText = "Move slider to simulate.";
+
     showScreen('detail');
 }
 
@@ -356,14 +369,21 @@ function switchTab(tabName) {
         tabCal.classList.remove("active");
         tabIns.classList.add("active");
         renderAnalytics(); 
+        initPredictionLogic(); 
     }
 }
+
+// --- ANALYTICS & PREDICTION ---
+let totalClasses = 0;
+let presentClasses = 0;
 
 function renderAnalytics() {
     if(trendChart) trendChart.destroy();
     if(distChart) distChart.destroy();
 
-    let total = 0, present = 0, absent = 0, holiday = 0;
+    totalClasses = 0; 
+    presentClasses = 0;
+    let absent = 0, holiday = 0;
     let labels = [], dataPoints = [];
     
     let loopDate = new Date(sessionData.startDate);
@@ -372,16 +392,15 @@ function renderAnalytics() {
     while(loopDate <= today) {
         const dStr = loopDate.toISOString().split('T')[0];
         let status = "Present"; 
-        
         if(sessionExceptions[dStr] && sessionExceptions[dStr].status) status = sessionExceptions[dStr].status;
         else if(isDefaultHoliday(dStr)) status = "Holiday";
 
         if(status !== "Holiday") {
-            total++;
-            if(status === "Present") present++;
+            totalClasses++;
+            if(status === "Present") presentClasses++;
             else absent++;
             
-            let pct = (present / total) * 100;
+            let pct = (presentClasses / totalClasses) * 100;
             labels.push(dStr.substring(5)); 
             dataPoints.push(pct.toFixed(1));
         } else {
@@ -389,6 +408,8 @@ function renderAnalytics() {
         }
         loopDate.setDate(loopDate.getDate() + 1);
     }
+
+    updatePrediction(); // Update on load
 
     const ctxTrend = document.getElementById('trendChart').getContext('2d');
     trendChart = new Chart(ctxTrend, {
@@ -422,13 +443,62 @@ function renderAnalytics() {
         data: {
             labels: ['Present', 'Absent', 'Holidays'],
             datasets: [{
-                data: [present, absent, holiday],
+                data: [presentClasses, absent, holiday],
                 backgroundColor: ['#00B894', '#FF4757', '#0984e3']
             }]
         }
     });
 }
 
+function initPredictionLogic() {
+    const slider = document.getElementById("pred-slider");
+    const attendBtn = document.getElementById("pred-attend");
+    const bunkBtn = document.getElementById("pred-bunk");
+    
+    attendBtn.onclick = () => {
+        attendBtn.classList.add("active");
+        bunkBtn.classList.remove("active");
+        updatePrediction();
+    };
+    bunkBtn.onclick = () => {
+        bunkBtn.classList.add("active");
+        attendBtn.classList.remove("active");
+        updatePrediction();
+    };
+    
+    slider.oninput = (e) => {
+        document.getElementById("slider-val-display").innerText = e.target.value;
+        updatePrediction();
+    };
+}
+
+function updatePrediction() {
+    const sliderVal = Number(document.getElementById("pred-slider").value);
+    const isAttend = document.getElementById("pred-attend").classList.contains("active");
+    
+    let simulatedTotal = totalClasses + sliderVal;
+    let simulatedPresent = presentClasses;
+    
+    if(isAttend) {
+        simulatedPresent += sliderVal;
+    }
+    
+    let currentPct = totalClasses === 0 ? 100 : (presentClasses / totalClasses) * 100;
+    let newPct = (simulatedPresent / simulatedTotal) * 100;
+    
+    let diff = newPct - currentPct;
+    let diffStr = diff >= 0 ? `+${diff.toFixed(2)}%` : `${diff.toFixed(2)}%`;
+    let color = diff >= 0 ? "var(--success)" : "var(--danger)";
+    let actionWord = isAttend ? "attend" : "bunk";
+    
+    document.getElementById("prediction-text").innerHTML = `
+        If you <b>${actionWord}</b> the next <b>${sliderVal}</b> classes:<br>
+        Your attendance will be <span class="pred-highlight">${newPct.toFixed(2)}%</span>
+        (<span style="color:${color}">${diffStr}</span>)
+    `;
+}
+
+// --- STANDARD FUNCTIONS ---
 document.getElementById("edit-target-btn").onclick = () => {
     if(sessionData.status === "Ended") return showToast("Session Frozen", "error");
     document.getElementById("target-input-field").value = sessionData.target;
